@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "variant": "fft-excess",
+  "device": "CUDA GPU3",
+  "manifest_paths": "relative",
+  "training_case": "CH4-T290.5-r00-rho0.6700",
+  "updates": 1,
+  "heldout_cases": [
+    "NH3-T618.2-r00-rho0.6700",
+    "C2H6-T465.4-r00-rho0.6700"
+  ],
+  "train_c2_directions": 24,
+  "evaluation_c2_directions": 152,
+  "fit_seconds": 53.67890427261591,
+  "peak_reserved_gib": 6.484375
+}
