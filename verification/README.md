@@ -10,3 +10,4 @@
 [方法、报告与代码的逐项核对](method_alignment.md)
 - [原盒 GPU 训练入口](full_grid_gpu.json) 使用项目真实预处理的相对路径清单。FFT 过量配置在 CH₄ 的完整网格更新一次，随后对留出的 NH₃、C₂H₆ 各一条算出全部 152×152 二阶条目。该内部原盒核对只发布统计。
 - [实测软件包版本](requirements-tested.txt) · [环境检查记录](environment_cpu.json)。Torch 对应 CUDA 13.0，CPU 检查同样使用这一套安装。
+- [分项损失核对](loss_audit.json) 含 GPU 的全部 8 个配置和 CPU 抽测。对六个网络配置独立按报告重算一阶、二阶、局部平衡及体相损失，核对实际训练参数梯度。稳定核两版核对两项导数损失与岭项构成的目标、约束及最优性残差。复现命令为 `OPENBLAS_NUM_THREADS=1 python verification/check_losses.py --device cuda`；同一个脚本可用 `--device cpu`。

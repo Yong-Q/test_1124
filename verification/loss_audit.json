@@ -1,0 +1,156 @@
+{
+  "gpu": [
+    {
+      "status": "passed",
+      "variant": "fft-excess",
+      "device": "cuda",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 1.0126034021377563,
+        "c2": 0.2683425545692444,
+        "local_el": 1.011810064315796,
+        "bulk": 0.8904185891151428
+      },
+      "parameter_gradient_relative_l2": 6.899188065290218e-08,
+      "parameter_gradient_max_abs": 1.4901161193847656e-08
+    },
+    {
+      "status": "passed",
+      "variant": "fft-intrinsic",
+      "device": "cuda",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 0.6716979146003723,
+        "c2": 0.22678731381893158,
+        "local_el": 0.0008009335724636912,
+        "bulk": 0.9999366402626038
+      },
+      "parameter_gradient_relative_l2": 1.5409601417104568e-07,
+      "parameter_gradient_max_abs": 3.5762786865234375e-07
+    },
+    {
+      "status": "passed",
+      "variant": "sparse-excess",
+      "device": "cuda",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 1.0126019716262817,
+        "c2": 0.26838383078575134,
+        "local_el": 1.0118104219436646,
+        "bulk": 0.8903996348381042
+      },
+      "parameter_gradient_relative_l2": 1.0821930374049771e-07,
+      "parameter_gradient_max_abs": 2.9802322387695312e-08
+    },
+    {
+      "status": "passed",
+      "variant": "cnn-single-excess",
+      "device": "cuda",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 0.9999849796295166,
+        "c2": 0.26409998536109924,
+        "local_el": 0.9999860525131226,
+        "bulk": 0.8904627561569214
+      },
+      "parameter_gradient_relative_l2": 9.564197966938082e-08,
+      "parameter_gradient_max_abs": 2.9103830456733704e-11
+    },
+    {
+      "status": "passed",
+      "variant": "cnn-single-intrinsic",
+      "device": "cuda",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 1.0004266500473022,
+        "c2": 0.22806215286254883,
+        "local_el": 0.001168729504570365,
+        "bulk": 0.9999998807907104
+      },
+      "parameter_gradient_relative_l2": 1.384238998980436e-07,
+      "parameter_gradient_max_abs": 6.984919309616089e-10
+    },
+    {
+      "status": "passed",
+      "variant": "cnn-dual-excess",
+      "device": "cuda",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 0.9999849796295166,
+        "c2": 0.26409998536109924,
+        "local_el": 0.9999860525131226,
+        "bulk": 0.8904627561569214
+      },
+      "parameter_gradient_relative_l2": 9.837435754889157e-08,
+      "parameter_gradient_max_abs": 2.9103830456733704e-11
+    },
+    {
+      "status": "passed",
+      "variant": "stable-base",
+      "device": "cuda",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 0.00013004740487138771,
+        "c2": 0.00021479881910116982,
+        "ridge": 0.0007275402781603476
+      },
+      "objective_reduction": 1.9949840495907798,
+      "solver_kkt_violation": 7.63639130567989e-14
+    },
+    {
+      "status": "passed",
+      "variant": "stable-bounded",
+      "device": "cuda",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 8.810517158299424e-05,
+        "c2": 0.00022901434943401513,
+        "ridge": 0.000609852885551163
+      },
+      "objective_reduction": 1.9951294636863446,
+      "solver_kkt_violation": 6.707244178294394e-14
+    }
+  ],
+  "cpu": [
+    {
+      "status": "passed",
+      "variant": "fft-excess",
+      "device": "cpu",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 1.012603521347046,
+        "c2": 0.2683425545692444,
+        "local_el": 1.0118099451065063,
+        "bulk": 0.8904186487197876
+      },
+      "parameter_gradient_relative_l2": 1.9102192538866802e-07,
+      "parameter_gradient_max_abs": 5.960464477539063e-08
+    },
+    {
+      "status": "passed",
+      "variant": "stable-base",
+      "device": "cpu",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 0.00013004717134991217,
+        "c2": 0.00021479883722455665,
+        "ridge": 0.0007275404170090695
+      },
+      "objective_reduction": 1.9949840497789708,
+      "solver_kkt_violation": 7.580800528811219e-14
+    },
+    {
+      "status": "passed",
+      "variant": "stable-bounded",
+      "device": "cpu",
+      "case": "CH4-T290.5-r00-rho0.6700",
+      "losses": {
+        "c1": 8.810489149653363e-05,
+        "c2": 0.00022901439875064455,
+        "ridge": 0.0006098529748825614
+      },
+      "objective_reduction": 1.9951294639394246,
+      "solver_kkt_violation": 6.864171071344354e-14
+    }
+  ]
+}
