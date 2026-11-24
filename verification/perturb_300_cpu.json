@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "case": "CH4-T290.5-r00-rho0.6700",
+  "states": 300,
+  "attempts": 308,
+  "min_ess": 121.00981505267568,
+  "min_block_ess": 18.237862716521114,
+  "output": "runs/perturb-interface-local/300.npz",
+  "first": {
+    "case": "CH4-T290.5-r00-rho0.6700",
+    "split": "train",
+    "frames": 400,
+    "probes": 152,
+    "max_reference_error": {
+      "c1_excess": 0.0,
+      "c2_excess": 0.0,
+      "y1_intrinsic": 0.0,
+      "y2_intrinsic": 0.0
+    },
+    "status": "passed"
+  },
+  "last": {
+    "case": "CH4-T290.5-r00-rho0.6700",
+    "split": "train",
+    "frames": 400,
+    "probes": 152,
+    "max_reference_error": {
+      "c1_excess": 0.0,
+      "c2_excess": 0.0,
+      "y1_intrinsic": 0.0,
+      "y2_intrinsic": 0.0
+    },
+    "status": "passed"
+  }
+}

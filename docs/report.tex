@@ -1,0 +1,882 @@
+\documentclass[UTF8,fontset=fandol,11pt]{ctexart}
+\usepackage[a4paper,hmargin=18mm,vmargin=15mm]{geometry}
+\usepackage{amsmath,amssymb,bm,booktabs,tabularx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage[unicode,colorlinks,linkcolor=teal!65!black,urlcolor=teal!65!black]{hyperref}
+\definecolor{ink}{HTML}{172F3D}
+\definecolor{tealblue}{HTML}{087B80}
+\definecolor{panel}{HTML}{E9F4F3}
+\definecolor{tensor}{HTML}{E9EFF7}
+\definecolor{orange}{HTML}{FAEBD8}
+\definecolor{warm}{HTML}{9C4B1A}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.13}
+\ctexset{section={format=\Large\bfseries\color{ink},beforeskip=5pt,afterskip=5pt}}
+\raggedbottom
+\tikzset{arr/.style={-{Stealth[length=2.2mm]},thick,draw=ink!78},
+  box/.style={draw=ink!43,rounded corners=1.5mm,fill=panel,text=ink,
+    text width=76.7mm,inner sep=3mm,align=left,font=\small},
+  slow/.style={box,fill=orange}, data/.style={box,fill=tensor},
+  arch/.style={box,text width=48mm,inner sep=2.6mm,minimum height=21mm},
+  edge/.style={font=\scriptsize,fill=white,inner sep=1.3pt,text=ink},
+  rim/.style={draw=ink!72,thick}}
+\newcommand{\xiF}{\bm\xi}
+\newcommand{\X}{\bar{\bm\xi}}
+\newcommand{\val}[1]{\csname #1\endcsname}
+\newcommand{\Ex}{\mathcal F_{\mathrm{ex}}}
+\newcommand{\Id}{\mathcal F_{\mathrm{id}}}
+\newcommand{\Int}{\mathcal F_{\mathrm{int}}}
+\newcommand{\htot}{H_{\mathrm{int}}}
+\newcommand{\el}{Euler--Lagrange}
+\newcommand{\budget}[1]{\textbf{\color{warm}计时}\quad #1}
+\newcommand{\card}[5]{\textbf{#1}\\[2pt]
+  \textbf{读入}\quad #2\\ \textbf{计算}\quad #3\\
+  \textbf{得到}\quad #4\\ \textbf{每次规模}\quad #5}
+\newcommand{\fref}[2]{\par{\footnotesize \hyperref[#1]{式~\ref{#1}的符号与来源}见\hyperref[#2]{下方说明}。}}
+\newcommand{\defat}[1]{\phantomsection\label{#1}}
+\input{metrics.tex}
+
+\begin{document}
+\begin{center}
+{\LARGE\bfseries\color{ink} 三维 \(\xiF\) 自由能模型}\\[4pt]
+{\Large 训练流程、网格与外势迭代}\\[4pt]
+{\small 技术报告\quad 2026 年 11 月 24 日}
+\end{center}
+
+\section{模型在算什么}\label{sec:definition}
+
+已知单原子外势，求三维原子分布及取向。训练用 MD 响应作参考，预测从外势初猜出发，最后用独立 MD 核对。
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+符号 & 在本报告里的意思 \\
+\midrule
+$\rho_E[\xiF](\mathbf r)$ & 从 $\xiF$ 读取的元素 $E$ 原子数密度，单位 $\text{\AA}^{-3}$。$E$ 为 C、H、N、O。\\
+$\xiF$、$\X_b$ & $\xiF$ 是逐原子构造的三维变分场，含占据和环境标记。$\X_b$ 是外势状态下的加权平均场。构造见第~\ref{sec:grid} 节。\\
+$\Id[\xiF]$ & 理想自由能，由 $\xiF$ 的元素占据通道按解析理想熵公式计算。\\
+$\Ex[\xiF]$ & 过量自由能。相对于项目选定的理想参考，剩余的自由能贡献。\\
+$\Int[\xiF]$ & 总内禀自由能，等于理想项加过量项。这里的“内禀”指与给定外势的直接相乘积分还未加入。\\
+$\beta\Omega[\xiF;V_{\rm ext},\mu]$ & 巨势。把总内禀自由能、外势能和化学势项放到同一个量里。\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{equation}
+\begin{aligned}
+\Int[\xiF]&=\Id[\xiF]+\Ex[\xiF],\\
+\beta\Omega[\xiF;V_{\rm ext},\mu]&=\Int[\xiF]+\sum_E\int \rho_E[\xiF](\mathbf r)\,\beta V_{{\rm ext},E}(\mathbf r)\,\mathrm d\mathbf r
+-\sum_E\beta\mu_E N_E[\xiF].
+\end{aligned}
+\label{eq:omega}
+\end{equation}
+\fref{eq:omega}{def:omega}
+\defat{def:omega}
+式~\ref{eq:omega} 中，$V_{{\rm ext},E}$ 是每个 $E$ 原子感受到的已知外势，
+$N_E[\xiF]=\int\rho_E[\xiF]\,\mathrm d\mathbf r$。
+求导时 $V_{\rm ext},\mu$ 固定。本报告的外势验证固定分子数和组成，化学势项为常数。
+沿用无量纲记号 $\mathcal F=\beta F$，其中 $\beta=1/(k_{\mathrm B}T)$，$T$ 是绝对温度。
+
+\begin{equation}
+\begin{aligned}
+\rho_{qE}[\xiF]&=\sum_{i\in E}\xi_{qi0}
+=\frac{\mathcal P_{qE}\xiF}{\Delta V},\\
+\Id[\xiF]&=\sum_{q,E}(\mathcal P_{qE}\xiF)
+\biggl[\log\!\biggl(\frac{\mathcal P_{qE}\xiF}{\Delta V\,\rho_*}\biggr)-1\biggr].
+\end{aligned}
+\label{eq:ideal}
+\end{equation}
+\fref{eq:ideal}{def:ideal}
+\defat{def:ideal}
+式~\ref{eq:ideal} 中，$q$ 是三维格点，$\Delta V$ 是单格体积，$\xi_{qi0}$ 是原子 $i$ 对格点 $q$ 的密度贡献，$\mathcal P_{qE}$ 读出该元素的无量纲占据数。
+$\rho_*$ 只是对数中的参考密度，固定粒子数时改变它只加一个常数。空格点的能量按极限取零。
+过量项与总内禀项均采用这个元素理想参考。
+
+\textbf{两个评判问题。} 一是同一状态上，模型的一阶响应和曲率是否接近参考。
+二是换一个真实外势后，按模型找到的原子密度是否比初猜更接近 MD。后者是最终验收，
+高导数分数无法替代它。万条正定基底的总曲率 \(R^2=0.872\)，17 个外势仍然全部劣于初猜。
+逐条结果见第~\ref{sec:fieldresult} 节。
+
+\medskip
+\noindent\colorbox{orange}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\small
+\textbf{\color{warm}目前最重要的三个问题}\par
+\textbf{曲率目标的量级。} 理想曲率是参考总曲率的 613–1503 倍，过量项高分容易掩盖总曲率偏差。\par
+\textbf{迭代落点。} 正定基底 17 条全部比初猜差，唯一收敛的案例也偏离 MD。\par
+\textbf{训练耗时。} 同盒 FFT 的一阶／平衡段 22.05 秒，二阶段 24.33 秒。两段内部的组场、卷积和反传尚无独立计时。}}
+
+\medskip
+\textbf{从哪页看}\quad
+\hyperref[sec:preprocess]{原子轨迹怎样变成训练数据}\quad
+\hyperref[sec:first]{一阶怎样算}\quad
+\hyperref[sec:second]{二阶怎样算}\\
+\hspace*{5em}\hyperref[sec:exfft]{逐模型看网络、网格和耗时}\quad
+\hyperref[sec:iterate]{怎样从已知外势算出平衡密度}
+
+\clearpage
+\section{一个三维格点存什么}\label{sec:grid}
+
+先在每一帧的每个原子上描述邻居，再把原子的贡献分配到附近格点。下面的三个框对应这三个步骤。
+
+\begin{center}
+\begin{tikzpicture}[node distance=4mm]
+\node[arch,fill=tensor] (a) {\textbf{原子中心 \(i\)}\\输入中心和邻居的三维位置\\输出相对位移 \(\mathbf r_{ia}\)};
+\node[arch,right=of a] (b) {\textbf{给邻居量距离和方向}\\8 个径向函数，球谐到 \(\ell=3\)\\每个原子得到 \(8\times16=128\) 个数};
+\node[arch,fill=orange,right=of b] (c) {\textbf{把贡献分配到附近网格}\\按坐标平滑分给最多 8 个格点\\各格点累加密度和 128 个环境分量};
+\draw[arr] (a)--(b); \draw[arr] (b)--(c);
+\end{tikzpicture}
+\end{center}
+
+\begin{equation}
+  v_{ti,n\ell m}
+  =\sum_{a\ne i} Z_a B_n(r_{ia})(r_{ia}/r_c)^\ell Y_{\ell m}^{\rm real}(\widehat{\mathbf r}_{ia}).
+\label{eq:atom}
+\end{equation}
+\fref{eq:atom}{def:atom}
+\defat{def:atom}
+式~\ref{eq:atom} 的 $i$、$a$ 是原子编号，$\mathbf r_{ia}$ 是周期盒中从中心 $i$ 指向邻居 $a$ 的最短位移，
+$r_{ia}$ 是其长度。$Z_a$ 是核电荷数，H、C、N、O 分别为 1、6、7、8。
+$B_n$ 是带平滑截断的零中心高斯径向函数，$n=0,\ldots,7$，宽度 $\sigma_n=0.5\,\text{\AA}\,5^{n/7}$。
+$Y_{\ell m}^{\rm real}$ 是实球谐，$m=-\ell,\ldots,\ell$，$(r_{ia}/r_c)^\ell$ 是短距离因子，
+$r_c=5\,\text{\AA}$ 为原子环境的截断半径。后续网络的 $5$ 或 $12\,\text{\AA}$ 是另一层邻域。
+
+\begin{center}
+\begin{tikzpicture}[x={(10mm,0mm)},y={(4.3mm,4mm)},z={(0mm,9mm)}]
+\foreach \x in {0,1,2,3}{\foreach \y in {0,1,2}{
+ \draw[ink!30] (\x,\y,0)--(\x,\y,2);
+ \draw[ink!25] (\x,\y,0)--(\x,2,0);
+ \draw[ink!25] (\x,\y,2)--(\x,2,2);
+}}
+\foreach \y in {0,1,2}{\foreach \z in {0,1,2}{\draw[ink!28] (0,\y,\z)--(3,\y,\z);}}
+\foreach \x in {0,1,2,3}{\foreach \z in {0,1,2}{\draw[ink!25] (\x,0,\z)--(\x,2,\z);}}
+\foreach \x in {1,2}{\foreach \y in {0,1}{\foreach \z in {0,1}{
+ \draw[tealblue!65,thin] (1.47,.51,.62)--(\x,\y,\z);
+ \fill[tealblue] (\x,\y,\z) circle(1.3pt);
+}}}
+\fill[warm] (1.47,.51,.62) circle(2.3pt);
+\draw[arr] (1.47,.51,.62)--++(3.9,0,0) node[right,font=\small] {原子位置};
+\draw[arr] (2,0,1)--++(3,0,0) node[right,font=\small] {格点接收贡献};
+\node[anchor=west,font=\small,align=left] at (4.8,0,-.35) {三维示意\\线长不表示分配权重};
+\end{tikzpicture}
+\end{center}
+
+\textbf{每格的通道数怎么来。} 每个角阶有 \(2\ell+1\) 个 \(m\)。模型给原始环境场加上
+一个总占据通道，再附上 C、H、N、O 的四个元素密度：
+\begin{align}
+ C_Y&=\sum_{\ell=0}^{3}(2\ell+1)=1+3+5+7=16,\notag\\
+ C_{\rm mark}&=8C_Y=128,\qquad C_{\xi}=1+128=129,\qquad
+ C_{\rm CNN,in}=129+4=133 .
+ \label{eq:grid-dims}
+\end{align}
+\fref{eq:grid-dims}{def:grid-dims}
+\defat{def:grid-dims}
+式~\ref{eq:grid-dims} 的 \(C_Y\) 是每个径向基的球谐数，\(C_{\rm mark}\) 是一个原子的环境分量数，
+\(C_{\xi}\) 是格点累加后原始场的通道数，\(C_{\rm CNN,in}\) 包含四个额外元素密度。
+沿用总方法的定义，每帧有 $\xi^{(t)}_{qi0}=S_{tqi}/\Delta V$、
+$\xi^{(t)}_{qiA}=\xi^{(t)}_{qi0}v_{ti,n\ell m}$，
+其中原子通道 $A=1+16n+\ell^2+\ell+m$ 将径向和角向编号映到存储通道。
+CNN 将原子轴累加成每格 129 个量，并拼接式~\ref{eq:ideal} 读出的四个元素密度。
+下一页的 152 是对整张场施加微扰的方向数。
+
+CNN 保留八个径向通道；FFT 和稀疏 MLP 对 \(\ell=1,2,3\) 只保留两个固定径向组合。
+两者的后续 43、47、26、121 和 125 通道各见第~\ref{sec:exfft} 和第~\ref{sec:single} 节。
+格距按约 \(0.5\,\text{\AA}\) 选定，实际用盒长除以格点数。
+
+\clearpage
+\section{预处理怎样得到训练输入和答案}\label{sec:preprocess}
+\begingroup\setlength{\parskip}{4pt}
+
+\begin{center}
+\begin{tikzpicture}[node distance=4.5mm,box/.append style={inner ysep=1.8mm}]
+\node[data] (a) {\card{\textcircled{\scriptsize 1} 读一条轨迹}{每帧坐标、元素与原子级 \(\xiF\)}{按原子坐标计算格点索引和分配权重}{第 \(t\) 帧的三维贡献 \(\xiF^{(t)}\) 可按需读取}{每条轨迹的训练缓存使用 400 帧}};
+\node[box,right=of a] (b) {\card{\textcircled{\scriptsize 2} 为每帧计算探针能量}{原子特征和 152 个外势探针}{逐原子计算探针能量并在一帧内加总}{表 \(U_{tk}\)，行是帧，列是探针}{\(400\times152=60{,}800\) 个数，轨迹内共用}};
+\node[box,below=of b] (c) {\card{\textcircled{\scriptsize 3} 选一个重加权状态}{候选外势给各原子增加的能量}{按帧加总得到偏置 \(U_{bt}\)，归一化 Boltzmann 权重}{该外势对应的一组 \(w_{bt}\)}{400 个权重，多个候选各有一组}};
+\node[box,left=of c] (d) {\card{\textcircled{\scriptsize 4} 计算微扰会怎样改变权重}{\(w_{bt},U_{tk}\)}{对探针幅度求导，得到 \(\dot w_{btk}\)}{每个探针一列权重导数}{\(400\times152\)；训练按需重建}};
+\node[slow,below=of d] (e) {\card{\textcircled{\scriptsize 5} 给模型准备输入}{\(\xiF^{(t)},w_{bt},\dot w_{btk}\)}{按同一格点对轨迹帧求加权和}{一张平均场 \(\X_b\) 与所需响应场 \(D_{bk}\)}{二阶训练一个状态每次用 1 加 24 张场}};
+\node[data,right=of e] (f) {\card{\textcircled{\scriptsize 6} 给损失准备参考答案}{每帧占据量与探针响应}{用加权统计计算参考导数}{一阶标签向量与二阶标签矩阵}{每状态 152 项与 \(152^2=23{,}104\) 项}};
+\draw[arr] (a)--(b); \draw[arr] (b)--(c); \draw[arr] (c)--(d);
+\draw[arr] (d)--(e); \draw[arr] (d.south east)--(f.north west);
+\end{tikzpicture}
+\end{center}
+\small
+
+\begin{equation}
+P=\underbrace{3(4+4)}_{\text{空间探针 }24}
+  +\underbrace{8\sum_{\ell=0}^{3}(2\ell+1)}_{\text{径向--角向探针 }128}
+=152 .
+\label{eq:probes-count}
+\end{equation}
+\fref{eq:probes-count}{def:probes-count}
+\defat{def:probes-count}
+式~\ref{eq:probes-count} 中 \(P\) 是外势探针的数目。空间探针对 \(x,y,z\) 每轴给
+4 个正弦和 4 个带窗口的斜坡，分别采用
+\(\sin(2\pi s\zeta+\varphi_{ds})\) 和
+\(\mathbf1_{\zeta_-<\zeta<\zeta_+}[v_1+(v_2-v_1)(\zeta-\zeta_-)/(\zeta_+-\zeta_-)]\)，其中
+\(\zeta=r_d/L_d\) 是沿轴 \(d\) 的归一化坐标。
+\(s=1,\ldots,4\)，\(\varphi_{ds}\) 为相位，\(\zeta_-,\zeta_+,v_1,v_2\) 给出斜坡窗口和端点值。
+径向–角向部分对每个 \((n,\ell,m)\) 给一个探针，把对应原子特征乘上指定的空间剖面后加总。
+共 \(8\times16=128\) 个。152 是列出的探针数，探针在具体轨迹上可互相关，独立秩由数据决定。
+
+\begin{equation}
+\Phi_{ti,k}=\sum_q S_{tqi}\phi_k(\mathbf r_q),\qquad
+U^{\mathrm{S}}_{t,k}=\sum_i\Phi_{ti,k},\qquad
+U^{\mathrm{A}}_{t,n\ell m}=\sum_i
+v_{ti,n\ell m}\,\Phi_{ti,\pi(\ell,m)}.
+\label{eq:probe-energy}
+\end{equation}
+\noindent\defat{def:probe-energy}
+式~\ref{eq:probe-energy} 的 \(S_{tqi}\) 是原子 \(i\) 分到格点 \(q\) 的权重，
+\(\Phi_{ti,k}\) 是它在空间剖面 \(\phi_k\) 下的插值。S 指空间探针，A 指环境探针。
+按代码中 16 个球谐分量的顺序，\(\pi(\ell,m)\) 循环取空间剖面的零基索引
+\((0,8,16,1,9,17,2,10,18,3,11,19)\)。同一角向分量的 8 个径向基共用这个剖面。
+
+\begin{equation}
+\begin{aligned}
+w_{bt}&=\frac{e^{-U_{bt}}}{\sum_s e^{-U_{bs}}},&
+\langle U_k\rangle_b&=\sum_s w_{bs} U_{sk},&
+\dot w_{btk}&=-w_{bt}(U_{tk}-\langle U_k\rangle_b),\\
+\X_b&=\sum_t w_{bt}\xiF^{(t)},&
+D_{bk}&=\sum_t \dot w_{btk}\xiF^{(t)}.
+\end{aligned}
+\label{eq:weights}
+\end{equation}
+\fref{eq:weights}{def:weights}
+\defat{def:weights}
+式~\ref{eq:weights} 中，$b$ 是重加权状态，$t,s$ 是轨迹帧，$k,j$ 是探针。
+$U_{tk}$ 是单位探针在帧 $t$ 的无量纲能量，
+$U_{bt}=U^{\rm bg}_{bt}+\sum_k\lambda_{bk}U_{tk}$，其中 $U^{\rm bg}_{bt}$ 是固定背景外势的贡献，无背景时取零。
+$\lambda_{bk}$ 是无量纲幅度，
+$\dot w_{btk}=\partial w_{bt}/\partial\lambda_{bk}$，$D_{bk}=\partial\X_b/\partial\lambda_{bk}$。
+训练时按块合成图\textcircled{\scriptsize 5} 的三维场。400 是训练与留出标签的实际帧数，CH$_4$ 原轨迹为 2001 帧。
+\endgroup
+
+\clearpage
+\section{一阶训练怎样得到全部 152 个数}\label{sec:first}
+
+\begin{center}
+\begin{tikzpicture}[node distance=6mm]
+\node[data] (a) {\card{\textcircled{\scriptsize 1} 合成当前的平均场}{帧权重 \(w_{bt}\) 与每帧原子特征}{逐块加权合成 \(\X_b\)，通过网络算局部自由能}{每块能量和对该块输入的梯度}{全盒只需 1 张基态场，按块流过 GPU}};
+\node[box,right=of a] (b) {\card{\textcircled{\scriptsize 2} 求每帧权重对自由能的影响}{局部能量和场组装的计算图}{把各块的梯度沿原路径传回帧权重，再相加}{\(g_{bt}=\partial\mathcal F/\partial w_{bt}\)}{400 个帧梯度}};
+\node[box,below=of b] (c) {\card{\textcircled{\scriptsize 3} 一次矩阵乘法算出全部一阶量}{帧梯度 \(g_{bt}\) 与权重导数 \(\dot w_{btk}\)}{对每一列做 \(-\sum_t g_{bt} \dot w_{btk}\)}{152 个预测值 \(\hat y_{1,bk}\) 与参考差}{\(400\times152=60{,}800\) 次乘加；不为各探针另组整盒场}};
+\node[data,left=of c] (d) {\card{\textcircled{\scriptsize 4} 用同一组梯度检查局部平衡}{帧梯度、元素占据量、样本外势}{按位置检查小扰动是否还能降低自由能加外势能}{\el{} 残差与一阶损失合成的帧方向}{这一步和\textcircled{\scriptsize 3}共用\textcircled{\scriptsize 2}的帧梯度}};
+\node[slow,below=of d] (e) {\card{\textcircled{\scriptsize 5} 再扫一遍盒子更新参数}{原始帧和\textcircled{\scriptsize 4}合成的一列方向}{用当前基态和组合方向重算各块，再按误差计算梯度}{一阶和平衡项对网络参数的梯度}{每块只需基态与 1 张组合响应场}};
+\draw[arr] (a)--(b); \draw[arr] (b)--(c); \draw[arr] (c)--(d); \draw[arr] (d)--(e);
+\end{tikzpicture}
+\end{center}
+
+\begin{equation}
+\hat y_{1,bk}=-D_{\xiF}\mathcal F[\X_b](D_{bk})
+          =-\sum_t
+            \underbrace{\frac{\partial\mathcal F}{\partial w_{bt}}}_{g_{bt}}
+            \underbrace{\frac{\partial w_{bt}}{\partial\lambda_{bk}}}_{\dot w_{btk}} .
+\label{eq:first}
+\end{equation}
+\fref{eq:first}{def:first}
+\defat{def:first}
+式~\ref{eq:first} 中，$D_{\xiF}$ 在 $\X_b$ 处沿 $D_{bk}$ 对完整场求导。
+右侧用式~\ref{eq:weights} 的帧权重导数实现同一个方向导数。$\hat y_{1,bk}$ 为预测，$y_{1,bk}$ 为参考。
+取 $\mathcal F=\Ex$ 时它是 $c_1=-\delta\Ex/\delta\xiF$ 沿 $D_{bk}$ 的投影 \(c_{1,bk}\)，取 $\mathcal F[\xiF]=\Int[\xiF]$ 时它是总内禀一阶量。平衡项用同一组帧梯度，
+再结合当前样本的已知外势和局部元素占据量。总内禀版本的平衡残差中理想项只出现一次。
+
+\budget{\textcircled{\scriptsize 1}–\textcircled{\scriptsize 5} 合计} 同一条 \(68^3\) 盒子、\(16^3\) 分块的实测为
+\textbf{FFT 22.05 秒、稀疏邻域 7.84 秒}。
+这组计时包括场组装、邻域运算和求导，五个框内尚无各自秒数。
+
+\textbf{手算例。} 同一格点的某通道在两帧分别为 2 和 5，权重为 0.6 和 0.4，
+平均场这一格是 \(0.6\times2+0.4\times5=3.2\)。
+某探针在两帧的能量为 1 和 3，加权平均为 1.8，权重导数是 \(+0.48,-0.48\)。
+把这组导数作为加权系数，响应场这一格就等于 \(0.48\times2-0.48\times5=-1.44\)。
+
+\clearpage
+\section{二阶训练怎样得到 \texorpdfstring{\(24\times24\)}{24 × 24} 曲率}\label{sec:second}
+
+\begin{center}
+\begin{tikzpicture}[node distance=6mm]
+\node[data] (a) {\card{\textcircled{\scriptsize 1} 从 152 个探针中选 24 个}{分层抽样规则和该状态的权重}{抽出列号 \(k\)，从同一参考矩阵取行和列}{24 个方向与一块参考 \(24\times24\) 矩阵}{6 个空间方向，18 个径向–角向方向}};
+\node[slow,right=of a] (b) {\card{\textcircled{\scriptsize 2} 第一次遍历算预测曲率}{基态权重及 24 列权重导数}{各块生成 \(\X_b\) 和 \(D_{bk}\)，对同一自由能求交叉曲率后相加}{整盒预测曲率块 \(\hat y_2\)}{25 张场的分块数据，576 个矩阵元素}};
+\node[box,below=of b] (c) {\card{\textcircled{\scriptsize 3} 和参考比较}{整盒预测与同一探针子块的标签}{相减、按训练参考尺度归一化、按被抽到的概率加权}{576 个误差给出反传所需的系数}{每个探针对只在损失中对应一个矩阵元素}};
+\node[slow,left=of c] (d) {\card{\textcircled{\scriptsize 4} 第二次遍历把误差传回参数}{\textcircled{\scriptsize 3}的误差系数和\textcircled{\scriptsize 2}的原始输入}{重算块里释放的中间数据，把曲率误差反传到训练参数}{二阶损失对各参数的梯度}{同样的 25 张场再按块组装一次}};
+\node[box,below=of d] (e) {\card{\textcircled{\scriptsize 5} 合并损失并更新一次}{一阶、二阶和平衡项梯度}{加上均匀体相元素响应的损失，裁剪总梯度，再用 AdamW 更新}{一套新参数}{批量 4、GPU 小批 1，50 条共 13 次更新}};
+\node[data,right=of e] (f) {\card{\textcircled{\scriptsize 6} 固定权重后评估}{留出分子的输入与完整探针}{评估一次完整预测，统计一阶和二阶误差}{\(R^2\)、RMSE、对角与非对角响应}{每条用 152 个探针；二阶有 23,104 个矩阵元素}};
+\draw[arr] (a)--(b); \draw[arr] (b)--(c); \draw[arr] (c)--(d);
+\draw[arr] (d)--(e); \draw[arr] (e)--node[edge,above]{训练结束后} (f);
+\end{tikzpicture}
+\end{center}
+
+\begin{equation}
+\hat y_{2,bkj}=-D^2_{\xiF}\mathcal F[\X_b](D_{bk},D_{bj}),\qquad
+H_{\mathrm{int}}[\xiF]=H_{\mathrm{id}}[\xiF]+H_{\mathrm{ex}}[\xiF] .
+\label{eq:second}
+\end{equation}
+\fref{eq:second}{def:second}
+\defat{def:second}
+式~\ref{eq:second} 在固定的平均场处，对 $\xiF$ 沿 $D_{bk},D_{bj}$ 求二阶导数。
+$k=j$ 是单方向曲率，$k\ne j$ 衡量两个方向的耦合。$H$ 采用能量 Hessian 的符号。
+过量监督将 $c_2=\delta c_1/\delta\xiF$ 投影为 $c_{2,bkj}=-H_{\mathrm{ex}}[\X_b](D_{bk},D_{bj})$，总内禀监督取 $\mathcal F[\xiF]=\Int[\xiF]$。
+这里把 $D_{bk},D_{bj}$ 固定，沿 $\X_b+\epsilon D_{bk}+\eta D_{bj}$ 求导，$\epsilon,\eta$ 是独立的试探幅度。
+若直接沿重加权曲线 $\X_b(\bm\lambda)$ 求二阶导，还会出现一阶梯度乘场的二阶变化项。
+令 $H=D^2_{\xiF}\mathcal F[\X_b]$。Hessian–向量积（HVP）返回 $Hv$，而训练监督的单个矩阵元是
+$-D_{bk}^{\top}H D_{bj}$。本报告的网络训练直接算整块投影。损失见第~\ref{sec:loss} 节。
+
+\begin{equation}
+P_{\rm train}^{(2)}
+ =\underbrace{6}_{\text{空间}}
+  +\underbrace{2+4+5+7}_{\ell=0,\,1,\,2,\,3}
+ =24,\qquad
+(P_{\rm train}^{(2)})^2=576,\qquad P^2=23{,}104 .
+\label{eq:sampling-dims}
+\end{equation}
+\fref{eq:sampling-dims}{def:sampling-dims}
+\defat{def:sampling-dims}
+式~\ref{eq:sampling-dims} 的 \(P_{\rm train}^{(2)}\) 是训练时选出的探针数，
+来自式~\ref{eq:probes-count} 的 152 个候选。空间分组从 24 个探针里取 6 个，
+四个角阶分组分别从 \(8(2\ell+1)\) 个候选中取 2、4、5、7 个。
+选择 \(n\) 个方向时需组装 \(1+n\) 张场，得到一个存为 \(n^2\) 项的对称曲率块。
+
+\budget{\textcircled{\scriptsize 2}–\textcircled{\scriptsize 4} 合计} 同一 \(68^3\) 盒实测 \textbf{FFT 24.33 秒、稀疏 7.39 秒}。
+二阶段只用 25 张场得到曲率块，每个曲率元素共用这些场。
+\textcircled{\scriptsize 3}需要整盒预测后才知道误差，\textcircled{\scriptsize 4}因此会重算此前释放的块。
+
+\clearpage
+\section{MD 参考怎样对应模型求导}\label{sec:targets}
+
+\begin{center}
+\begin{tikzpicture}[node distance=5mm]
+\node[data] (a) {\card{从保存的数据构造总参考}{\(w_{bt}\) 与每帧探针能量 \(U_{tk}\)}{对探针能量求加权协方差}{总内禀参考 Hessian \(H_{\rm int}^{\rm ref}\)}{\(152\times152\)，训练可抽子块}};
+\node[data,right=of a] (b) {\card{用解析公式计算理想项}{每格占据和每个探针引起的占据变化}{对理想熵求二阶导数，乘上两个探针响应}{理想曲率 \(H_{\rm id}\)}{每个有占据的元素格点都有贡献}};
+\node[box,below=of a] (c) {\card{总内禀监督}{左上框的协方差}{网络直接预测总内禀自由能的导数}{训练目标 \(-H_{\rm int}^{\rm ref}\)}{不需要从两个大矩阵相减来得到训练目标}};
+\node[slow,below=of b] (d) {\card{过量项监督}{上面两块矩阵}{理想曲率减参考总曲率}{训练目标 \(c_2^{\rm ref}\)}{网络要学出几乎同样大的抵消项}};
+\draw[arr] (a)--(c); \draw[arr] (b)--(d); \draw[arr] (a.south east)--(d.north west);
+\end{tikzpicture}
+\end{center}
+
+\begin{align}
+ c^{\rm ref}_{1,bk}
+ &=\sum_t U_{bt}\dot w_{btk}
+   +\sum_{q,E:\mu_{b,qE}>0}\log(\mu_{b,qE})\,d_{bk,qE},
+   \label{eq:first-ref}\\
+ (H_{\rm int}^{\rm ref})_{bkj}
+ &=\sum_t w_{bt}(U_{tk}-\langle U_k\rangle_b)(U_{tj}-\langle U_j\rangle_b),\label{eq:cov}\\
+ (H_{\rm id})_{bkj}
+ &=\sum_{q,E:\mu_{b,qE}>0}\frac{d_{bk,qE}d_{bj,qE}}{\mu_{b,qE}},
+ \qquad c^{\rm ref}_{2,bkj}=(H_{\rm id}-H_{\rm int}^{\rm ref})_{bkj}.
+ \label{eq:idcurve}
+\end{align}
+\fref{eq:first-ref}{def:cov}
+\fref{eq:cov}{def:cov}
+\fref{eq:idcurve}{def:cov}
+\defat{def:cov}
+式~\ref{eq:first-ref}–\ref{eq:idcurve} 用 MD 的探针能量及帧权重构造参考。
+一阶参考用能量与权重导数，二阶总参考用探针能量的涨落，再按本文理想参考得到过量标签。
+$N_{t,qE}=\mathcal P_{qE}\xiF^{(t)}$，$\mu_{b,qE}=\mathcal P_{qE}\X_b$，$d_{bk,qE}=\mathcal P_{qE}D_{bk}$。
+三者依次为元素占据数、平均占据和沿探针 $k$ 的占据变化。$H_{\rm id}$ 由式~\ref{eq:ideal} 得出。
+\textbf{模型侧与参考侧。} 模型对 $\mathcal F[\xiF]$ 求导，MD 侧用涨落与响应估计沿同一 $D_{bk}$ 的参考投影。
+即使用齐 152 个探针，标签也只约束它们张成的子空间。模型泛函定义了逐格、逐通道的梯度和 Hessian，训练时计算有参考的方向投影。
+
+\textbf{为什么有的 \(R^2\) 接近 1，迭代仍可能错误。}
+同一批四个留出状态里，理想曲率的元素均方根是参考总曲率的
+\textbf{613–1503 倍}。例如 NH$_3$ 的第 394 条状态，
+\(H_{\rm id}\) 的均方根约 \(1.208\times10^6\)，
+\(H_{\rm int}^{\rm ref}\) 约 \(1.950\times10^3\)。
+如果总曲率的误差已经和后一个数相当，相对于前一个数仍很小。
+因此过量项 \(c_2\) 的高分只能说明大项拟合得好，仍要直接看总曲率、软方向及外势迭代。
+
+\textbf{耗时口径。} 下文“训练”包含完整逐轨迹步骤。两段计时均含读数据、组场、卷积和反传。
+
+\textbf{如何看接下来的图。}
+多通道方块标出输入和输出的尺寸，重复层写出重复次数，局部邻居图与完整网络图分开。
+三种画法分别参考了 \href{https://arxiv.org/pdf/1505.04597}{U-Net 图 1}、
+\href{https://openaccess.thecvf.com/content_cvpr_2016/papers/He_Deep_Residual_Learning_CVPR_2016_paper.pdf}{ResNet 图 3} 和
+\href{https://pmc.ncbi.nlm.nih.gov/articles/PMC9068614/#Fig1}{NequIP 图 1}。图内尺寸来自本项目代码。
+
+\textbf{网格大小怎样影响耗时。}
+\(68^3=314{,}432\) 个格点，\(240^3=13{,}824{,}000\) 个格点，相差约 44 倍。
+\(68^3\) 小盒切成 \(16^3\) 核心块时有 \(5^3=125\) 块，切成 \(8^3\) 时有 \(9^3=729\) 块，
+边界块会较小。每个块还要读取外围邻居，块越小，重叠越多。
+50 条对照只含中高密度盒子，不能按表中每条秒数直接外推到低密度大盒。
+
+
+% First argument codes the real operator geometry:
+% 0/1 FFT short/dual, 2 sparse, 3 single CNN, 4 dual CNN, 5 stable basis.
+\newcommand{\gridpanel}[1]{%
+\begin{tikzpicture}[x=3.8mm,y=3.8mm,baseline=(current bounding box.center)]
+\draw[step=1,ink!20] (-4,-4) grid (4,4);
+\ifnum#1=2
+  \foreach \x/\y in {-1/0,1/0,0/-1,0/1,-1/-1,1/-1,-1/1,1/1,-3/0,3/0,0/-3,0/3,-3/-3,3/-3,-3/3,3/3}{
+    \draw[tealblue!50] (0,0)--(\x,\y);
+    \fill[tealblue] (\x,\y) circle(1.25pt);
+  }
+  \node[font=\scriptsize,anchor=south west,fill=white] at (-4,4.2) {轴向与斜向邻点};
+\else
+  \draw[tealblue,thick] (0,0) circle(1.65);
+  \node[font=\scriptsize,fill=white] at (1.65,.3) {5 \AA};
+  \ifnum#1=1 \draw[warm,dashed,thick] (0,0) circle(3.65);
+                     \node[font=\scriptsize,fill=white] at (2.55,2.55) {12 \AA};\fi
+  \ifnum#1=4 \draw[warm,dashed,thick] (0,0) circle(3.65);
+                     \node[font=\scriptsize,fill=white] at (2.55,2.55) {12 \AA};\fi
+  \ifnum#1=5 \draw[warm,dashed,thick] (0,0) circle(3.65);
+                     \node[font=\scriptsize,fill=white] at (2.55,2.55) {12 \AA};\fi
+  \draw[rounded corners=.8mm,ink,thick] (-1,-1) rectangle (1,1);
+  \node[font=\scriptsize,anchor=south west,fill=white] at (-4,4.2) {核心块与短／长核};
+\fi
+\fill[warm] (0,0) circle(2pt);
+\draw[arr] (-4,-4)--(-2.8,-4) node[below,font=\scriptsize] {$x$};
+\draw[arr] (-4,-4)--(-4,-2.9) node[left,font=\scriptsize] {$z$};
+\node[font=\scriptsize,anchor=north] at (0,-4.45) {\(xz\) 剖面，非等比例};
+\end{tikzpicture}}
+\newcommand{\sixpoints}{%
+\begin{tikzpicture}[x={(7mm,0mm)},y={(3.5mm,3mm)},z={(0mm,7mm)},baseline=(current bounding box.center)]
+  \foreach \x/\y/\z in {-1/0/0,1/0/0,0/-1/0,0/1/0,0/0/-1,0/0/1}{
+   \draw[tealblue,thick] (0,0,0)--(\x,\y,\z);
+   \fill[tealblue] (\x,\y,\z) circle(1.7pt);
+  }
+  \fill[warm] (0,0,0) circle(2.2pt);
+  \node[anchor=north,font=\scriptsize,align=center] at (0,0,-1.3) {中心与 6 个邻点\\步长为一个格距};
+\end{tikzpicture}}
+
+\newcommand{\architecture}[6]{%
+\begin{center}
+\begin{tikzpicture}[node distance=4mm]
+\node[arch,fill=tensor] (a) {#1};
+\node[arch,right=of a] (b) {#2};
+\node[arch,fill=orange,right=of b] (c) {#3};
+\node[arch,below=4mm of c] (d) {#4};
+\node[arch,left=of d] (e) {#5};
+\node[arch,fill=tensor,left=of e] (f) {#6};
+\draw[arr] (a)--(b); \draw[arr] (b)--(c); \draw[arr] (c)--(d);
+\draw[arr] (d)--(e); \draw[arr] (e)--(f);
+\end{tikzpicture}
+\end{center}}
+
+\newcommand{\fftarch}[2]{\architecture
+{\textbf{从格点读入}\\129 原始通道加 4 个元素密度\\组成 133 个输入量}
+{\textbf{整理径向–角向通道}\\高阶的 8 个径向量变成 2 个组合\\短程支路获得 43 通道}
+{\textbf{在三维盒里汇聚邻居}\\#1\\拼成 47 通道}
+{\textbf{同阶球谐内积}\\13 个标量、9 个角向内积、4 个远邻密度\\输出 26 通道}
+{\textbf{每格得到一个能量密度}\\宽 32 的 Softplus 隐藏层，加二次项\\乘体积再对盒子求和}
+{\textbf{输出后再求导}\\#2\\一阶 152 项、训练二阶 \(24^2\) 项}}
+\newcommand{\cnnarch}[4]{\architecture
+{\textbf{从格点读入}\\129 原始通道加 4 个元素密度\\每格 133 个输入量}
+{\textbf{第一步做空间汇聚}\\133 通道的 5\,\text{\AA}\ 短核\\#1}
+{\textbf{构造不随整体旋转变的量}\\同一角阶内做 8 径向通道内积\\#2}
+{\textbf{第一隐藏层}\\逐格线性变换至 64 通道\\Softplus，内部大小 \(18^3\)}
+{\textbf{再做 5 层邻居混合}\\每层 64 通道与六轴邻点\\逐层 \(18^3\to16^3\to\cdots\to8^3\)}
+{\textbf{局部能量加总并求导}\\每格 \(64\to1\)，盒内相加\\#3\\#4}}
+
+\newcommand{\scores}[1]{%
+\begin{center}\small
+\begin{tabular}{lrrrrr}\toprule
+留出分子 & 一阶 \(R^2\) & 一阶 RMSE & 二阶 \(R^2\) & 二阶 RMSE & 非对角 \(R^2\)\\
+\midrule\val{#1scoreRows}\bottomrule
+\end{tabular}
+\end{center}}
+\newcommand{\iterrows}[1]{%
+\begin{center}\small
+\begin{tabular}{lrrrrr}\toprule
+外势与分子 & 初猜 RMSE & 迭代 RMSE & 步数 & 驻点残差 & 负曲率事件\\
+\midrule\val{#1iterationRows}\bottomrule
+\end{tabular}
+\end{center}}
+\newcommand{\runtime}[1]{%
+\textbf{实际用时}\quad 训练 \val{#1training} 分钟，留出评估 \val{#1test} 分钟，
+GPU 任务墙钟 \val{#1wall}，峰值预留显存 \val{#1memory} GiB。
+三条外势验证墙钟 \val{#1outer}。}
+\newcommand{\source}[1]{\par{\footnotesize 原始数据\\\val{#1source}}}
+\newcommand{\gridblock}[4]{%
+\begin{center}
+\begin{minipage}{.25\linewidth}\centering\gridpanel{#1}\end{minipage}
+\begin{minipage}{.08\linewidth}\centering #2\end{minipage}\hfill
+\begin{minipage}{.58\linewidth}\small\textbf{图里的格点怎样参与计算}\\#3\par
+\textbf{这个版本的区别}\quad #4\end{minipage}
+\end{center}}
+\newcommand{\gridcnnblock}[3]{%
+\begin{center}
+\begin{minipage}{.23\linewidth}\centering\gridpanel{#1}\end{minipage}
+\begin{minipage}{.20\linewidth}\centering\sixpoints\end{minipage}\hfill
+\begin{minipage}{.53\linewidth}\small\textbf{图里的格点怎样参与计算}\\#2\par
+\textbf{这个版本的区别}\quad #3\end{minipage}
+\end{center}}
+
+
+\newcommand{\comparescores}[1]{%
+\par\begingroup\centering\small
+\begin{tabular}{lrrrrr}\toprule
+监督版本 & 一阶 \(R^2\) & 一阶 RMSE & 二阶 \(R^2\) & 二阶 RMSE & 非对角 \(R^2\)\\
+\midrule #1 \bottomrule
+\end{tabular}\par\endgroup}
+\newcommand{\comparefields}[1]{%
+\par\begingroup\centering\small
+\begin{tabular}{lrrrr}\toprule
+密度 RMSE \((\text{\AA}^{-3})\) & CH$_4$ 均匀场 & NH$_3$ 势井 & C$_2$H$_6$ 高斯场 & 收敛\\
+\midrule
+外势初猜 & 0.02263 & 0.00470 & 0.00856 & —\\
+#1
+\bottomrule
+\end{tabular}\par\endgroup}
+\newcommand{\speedrow}[2]{#2 & \val{#1training} & \val{#1test} & \val{#1wall} & \val{#1outer}\\}
+\newcommand{\speedtable}[1]{%
+\par\begingroup\centering\small
+\begin{tabular}{lrrrr}\toprule
+版本 & 训练／分 & 留出／分 & GPU 墙钟 & 外势 CPU 墙钟 \\
+\midrule #1 \bottomrule
+\end{tabular}\par\endgroup}
+\newcommand{\sparsepoints}{%
+\begin{tikzpicture}[x={(7mm,0mm)},y={(3.5mm,3mm)},z={(0mm,7mm)},baseline=(current bounding box.center)]
+\foreach \a in {-1,0,1}{\foreach \b in {-1,0,1}{\foreach \c in {-1,0,1}{
+ \ifnum\numexpr\a*\a+\b*\b+\c*\c\relax>0
+  \draw[tealblue!36,thin] (0,0,0)--(\a,\b,\c);
+  \fill[tealblue] (\a,\b,\c) circle(1.35pt);
+ \fi
+}}}
+\fill[warm] (0,0,0) circle(2.1pt);
+\node[anchor=north,font=\scriptsize,align=center] at (0,0,-1.35) {一层 26 个候选邻点\\按距离与截断确定权重};
+\end{tikzpicture}}
+
+\clearpage
+\section{投影损失、局部平衡和体相匹配}\label{sec:loss}
+
+\textbf{一阶和二阶损失。} 设 $P=152$，$\mathcal B$ 为当前一批状态，$I_b$ 为状态 $b$ 使用的二阶探针集。
+$\chi=\mathrm{ex}$ 使用过量 $c_1,c_2$ 标签，$\chi=\mathrm{int}$ 使用总内禀导数取负号后的标签。
+把模型和参考之差分别记为 $e^{\chi}_{1,bk}$、$e^{\chi}_{2,bkj}$。对应训练损失为
+\begin{align}
+\mathcal L_1^\chi
+ &=\frac{\displaystyle\sum_{b\in\mathcal B}\sum_{k=1}^{P}
+    (e^{\chi}_{1,bk})^2}{|\mathcal B|P\sigma_1^2},\label{eq:loss-one}\\
+\mathcal L_2^\chi
+ &=\frac{\displaystyle\sum_{b\in\mathcal B}\sum_{k,j\in I_b}
+    \frac{(e^{\chi}_{2,bkj})^2}{\pi_{kj}}}{|\mathcal B|P^2\sigma_2^2}.
+    \label{eq:loss-two}
+\end{align}
+\fref{eq:loss-one}{def:loss-proj}
+\fref{eq:loss-two}{def:loss-proj}
+\defat{def:loss-proj}
+$\sigma_r=\max(10^{-12},\operatorname{RMS}(y_r^{\chi,\rm ref}))$，用选定训练状态的完整标签计算。
+$\pi_{kj}$ 是条目同时入样的概率。五个分层的总数为 $(24,8,24,40,56)$，抽样数为 $(6,2,4,5,7)$。
+某层共有 $M$ 个方向、抽 $h$ 个时，对角项概率为 $h/M$，同层非对角项为 $h(h-1)/(M(M-1))$，
+跨层项为两个方向入样概率之积。留出评价用全部 $P^2$ 个条目。
+
+\textbf{局部 Euler--Lagrange（EL）损失。} 对每个元素格点 $s=(q,E)$，用 $N_{ts}=N_{t,qE}$，
+$V_{bs}=\operatorname{Var}_{w_b}(N_{ts})$，$\mathrm C_b(N_s,a)=\operatorname{Cov}_{w_b}(N_{ts},a_t)$。定义
+\begin{equation}
+\begin{aligned}
+a^{0}_{bt}&=\textstyle\sum_{s:\mu_{bs}>0} N_{ts}\ln\mu_{bs}-\ln w_{bt},
+\qquad
+a^{\chi}_{bt}=
+\begin{cases}
+g_{bt}^{\rm ex}+a^{0}_{bt},&\chi=\mathrm{ex},\\
+g_{bt}^{\rm int}-\ln w_{bt},&\chi=\mathrm{int},
+\end{cases}\\
+\mathcal L_{\rm EL}^{\chi}
+ &=\frac{1}{|\mathcal B|}\sum_{b\in\mathcal B}
+ \frac{\sum_{s\in A_b}\mathrm C_b(N_s,a^{\chi}_b)^2/V_{bs}}
+ {|A_b|\,s_b},\qquad
+ s_b=\max\left(10^{-6},
+ \frac{\sum_{s\in A_b}\mathrm C_b(N_s,a^{0}_b)^2/V_{bs}}{|A_b|}\right).
+\end{aligned}
+\label{eq:loss-el}
+\end{equation}
+\fref{eq:loss-el}{def:loss-el}
+\defat{def:loss-el}
+$\mu_{bs}$ 是该元素格点的加权占据，$g^\chi=\partial\mathcal F_\chi/\partial w_{bt}$。
+$A_b$ 保留 $V_{bs}>8\varepsilon_{\rm mach}\langle N_{ts}^2\rangle_{w_b}$ 的格点，
+实现把分母的格点数下限设为 1。$\varepsilon_{\rm mach}$ 是浮点机器精度。
+$\mathrm C_b(N_s,a)$ 测量局部改变占据时，内禀能量和外势能是否仍产生驱动力。
+
+\textbf{均相体相损失。} 设 $U_{\mathbf k}$ 为所保留的结构矩阵本征向量，$\lambda_{\mathbf k i}$ 为其本征值，
+$H^\star_\chi=M^{1/2}H_\chi M^{1/2}$，其中 $M=\mathrm{diag}(N_E/V)$ 为均相元素数密度矩阵。
+\begin{equation}
+\mathcal L_{\rm bulk}^{\chi}
+=\frac{\displaystyle\sum_{\mathbf k}\left\|
+ U_{\mathbf k}^\dagger
+ \bigl(H^\star_\chi(\mathbf k)+\mathbf 1_{\chi=\mathrm{ex}}I\bigr)U_{\mathbf k}
+ - R_{\mathbf k}\right\|_{\rm F}^{2}}
+ {\displaystyle\sum_{\mathbf k}\|R_{\mathbf k}\|_{\rm F}^{2}},
+ \qquad R_{\mathbf k}=\mathrm{diag}_{i}(1/\lambda_{\mathbf k i}).
+\label{eq:loss-bulk}
+\end{equation}
+\fref{eq:loss-bulk}{def:loss-bulk}
+\defat{def:loss-bulk}
+$\mathbf k$ 是非零波矢，$I$ 是归一化理想项的单位矩阵，$^\dagger$ 是共轭转置。
+体相损失每次更新加一次。四项外部权重均为 1。网络参数梯度用自动微分反传。稳定核的拟合见第~\ref{sec:positive} 节。
+\clearpage
+\section{FFT 邻域 MLP}\label{sec:exfft}
+\fftarch{5\,\text{\AA}\ 短核处理 43 通道\\12\,\text{\AA}\ 长核只处理 4 个元素密度}
+{过量版输出 \(\Ex\)，总内禀版输出 \(\Int\)}
+\gridblock{1}{}{红点是核的中心。蓝圈为短程半径，虚线为长程半径，方框为示意核心块。
+实际核心块是 \(16^3\)。在约 \(0.5\,\text{\AA}\) 网格上，每侧分别多读约 10／24 格。
+相邻块的外围会重叠，最后只保留核心块。}
+{FFT 是快速傅里叶变换。这版用 FFT 算卷积，再把结果变回三维格点。
+同一个小盒、两条状态，\(8^3\to16^3\) 把训练计算从 119.60 s 降到 46.85 s。}
+
+\begin{equation}
+\begin{aligned}
+C_s&=1+4+8=13, &
+C_{\rm short}&=C_s+2(3+5+7)=43,\\
+C_{\rm filter}&=43+4=47, &
+C_{\rm readout}&=C_s+3\binom{2+1}{2}+4=26.
+\end{aligned}
+\label{eq:fft-dims}
+\end{equation}
+\fref{eq:fft-dims}{def:fft-dims}
+\defat{def:fft-dims}
+占据、四元素密度和八个 \(\ell=0\) 径向量合成 \(C_s\)。
+\(C_{\rm short}\)、\(C_{\rm filter}\)、\(C_{\rm readout}\) 分别是短核输入、短长拼接和读出输入。
+每个非零角阶的两个径向组合内积只留三个上三角量。稀疏版同样计数。
+
+\textbf{求导与损失。} 两版都用解析链式法则，按 Softplus、球谐内积和二次项直接算投影曲率。
+各用 $\mathcal L_1^\chi+\mathcal L_2^\chi+\mathcal L_{\rm EL}^\chi+\mathcal L_{\rm bulk}^\chi$，
+$\chi$ 分别为过量或总内禀。各项见第~\ref{sec:loss} 节。外势求解用自动微分 HVP。
+\speedtable{\speedrow{exfft}{过量项}\speedrow{totalfft}{总内禀}}
+\comparescores{过量项 & \val{exfftsummaryCells}\\ 总内禀 & \val{totalfftsummaryCells}\\}
+\comparefields{过量项 & \val{exfftafterCells} & 0/3\\ 总内禀 & \val{totalfftafterCells} & 0/3\\}
+\textbf{\color{warm}问题。} 直接训练总内禀后，总曲率 \(R^2=0.453\)，学到部分交叉响应。
+三个外势仍全部变差。过量版的两个留出分子也都变差。
+早先 \(R^2\approx0.99\) 是复现局部 CNN 输出，本页才是对真实标签的整盒误差。
+
+\clearpage
+\section{稀疏 \texorpdfstring{\(\xiF\)}{ξ} 邻域 MLP}\label{sec:sparse}
+\fftarch{按距离读取有限个轴向和斜向点\\短、长两路各选两层位置}
+{输出 \(\Ex\)，再求 \(c_1,c_2\)}
+\begin{center}
+\begin{minipage}{.23\linewidth}\centering\gridpanel{2}\end{minipage}
+\begin{minipage}{.23\linewidth}\centering\sparsepoints\end{minipage}\hfill
+\begin{minipage}{.48\linewidth}\small
+\textbf{左图为剖面，右图画出一层三维邻居。} 各轴取偏移 \(-1,0,1\)，
+按标称距离放大再四舍五入到格点，候选点包含轴向和斜向。
+短程步长约 0.65／2.5\,\text{\AA}，长程约 4.5／6.5\,\text{\AA}。
+图中的线表示读取相邻 \(\xiF\)，每条边乘对应距离的权重。
+\end{minipage}
+\end{center}
+\textbf{求导与损失。} 与 FFT 过量版共用解析投影公式，改变的是邻居滤波。训练用
+$\mathcal L_1^{\rm ex}+\mathcal L_2^{\rm ex}+\mathcal L_{\rm EL}^{\rm ex}+\mathcal L_{\rm bulk}^{\rm ex}$，
+体相项用稀疏邻域的波矢响应。外势求解用自动微分 HVP。下面的自动微分交叉曲率属于独立核对。
+\speedtable{\speedrow{sparse}{过量项}}
+\comparescores{过量项 & \val{sparsesummaryCells}\\}
+\comparefields{过量项 & \val{sparseafterCells} & 0/3\\}
+\textbf{\color{warm}问题。} 同盒单样本，FFT 的 46.38 秒降到稀疏的 15.23 秒，
+显存由 5.64 GiB 降到 2.60 GiB。
+稀疏化省的是每点读到的邻居，核心格点仍铺满整个盒子。
+两个相邻格点的交叉曲率用自动微分和有限差分都得到 \(1.52\times10^{-4}\)，说明网络能表达耦合。
+留出非对角 \(R^2\) 仍接近零，说明这一轮没有学到正确尺度。
+{\footnotesize 数据 \path{experiments/xi_sparse_xi_neighbors/run_160253/summary.json} 与
+\path{experiments/xi_sparse_xi_neighbors/iter_160257/summary.json}。}
+
+\clearpage
+\section{三维 CNN｜单尺度与双尺度}\label{sec:single}
+\defat{sec:dual}
+\cnnarch{双尺度多并行 12\,\text{\AA}\ 密度支路}{短程得到 121；双尺度拼接后为 125}
+{训练可选 \(\Ex\) 或 \(\Int\)}{两者各用自己的导数标签}
+\gridcnnblock{4}{左图两者共用网格和 \(8^3\) 核心。蓝圈 5\,\text{\AA}\ 是单、双尺度共同的首层短程核。
+虚线 12\,\text{\AA}\ 只在双尺度使用，且只读 C、H、N、O 四个元素密度涨落。
+右图是两者后五层共用的六邻点。}
+{每层宽 64。后五层各去掉外围 1 格，从 \(18^3\) 逐层到 \(8^3\)。
+单尺度的格点位置和后五层的计算都相同，只省去虚线支路。}
+
+\begin{equation}
+C_{\rm CNN,in}=13+8(3+5+7)=133,\qquad
+C_{\rm single}=13+3\binom{8+1}{2}=121,\qquad
+C_{\rm dual}=121+4=125 .
+\label{eq:cnn-dims}
+\end{equation}
+\fref{eq:cnn-dims}{def:cnn-dims}
+\defat{def:cnn-dims}
+式~\ref{eq:cnn-dims} 的 133 是短核输入。三个非零角阶各取 \(8\times8\) 内积矩阵的
+36 个上三角元素。121 是单尺度读出通道数，双尺度再拼四个元素密度量。
+
+\textbf{求导与损失。} 六层按解析链式法则传播方向，直接累加投影曲率。
+单尺度两版分别取 $\chi=\mathrm{ex,int}$，双尺度取 $\chi=\mathrm{ex}$。
+各用 $\mathcal L_1^\chi+\mathcal L_2^\chi+\mathcal L_{\rm EL}^\chi+\mathcal L_{\rm bulk}^\chi$。
+单、双尺度外势求解都用自动微分 HVP。
+\speedtable{\speedrow{single}{单尺度过量项}\speedrow{totalcnn}{单尺度总内禀}\speedrow{dual}{双尺度过量项}}
+\comparescores{单尺度过量项 & \val{singlesummaryCells}\\ 单尺度总内禀 & \val{totalcnnsummaryCells}\\ 双尺度过量项 & \val{dualsummaryCells}\\}
+\comparefields{单尺度过量项 & \val{singleafterCells} & 0/3\\ 单尺度总内禀 & \val{totalcnnafterCells} & 0/3\\ 双尺度过量项 & \val{dualafterCells} & 0/3\\}
+\textbf{\color{warm}问题。} 双尺度多用约 101 分钟，过量曲率仍在均值基线附近。三组都只更新 13 次。
+
+\clearpage
+\section{稳定核｜正定基底与受限 MLP 修正}\label{sec:positive}
+\defat{sec:bounded}
+\architecture
+{\textbf{逐轨迹算一份固定空间基底}\\42 条轨迹的短／长核\\同一轨迹各状态复用}
+{\textbf{每个状态取导数特征}\\一阶 152 个，二阶 \(24^2\) 个\\加上解析理想项参考}
+{\textbf{把样本贡献加到总矩阵}\\10,000 条\\大盒的环境场分块传到 GPU}
+{\textbf{最后一次拟合两套系数}\\非负平方系数给正定基底\\修正版额外约束非线性权重}
+{\textbf{两份权重同时保存}\\基底／受限修正\\启动到写出约 2:24:09}
+{\textbf{冻结后测 100 条}\\25 条留出轨迹，全部探针\\写出到留出结束约 22:40}
+\gridblock{5}{}{固定径向卷积仍在三维网格，短程 5\,\text{\AA}、长程 12\,\text{\AA}。
+基底计算每格滤波特征；修正版只在其中五个环境通道加受限 Softplus 项。}
+{两套权重共享一项 2:46:49 的 GPU3 任务。大盒驻留主机内存和传输各自耗时没有单列。}
+
+\begin{equation}
+\Int^{\rm base}[\xiF]
+=\Delta V\sum_q\left(\tfrac12\,\mathbf h_q[\xiF]^\top A\mathbf h_q[\xiF]+\mathbf b^\top\mathbf h_q[\xiF]\right)
++10^{-4}\Id[\xiF].
+\label{eq:base}
+\end{equation}
+\fref{eq:base}{def:base}
+\defat{def:base}
+式~\ref{eq:base} 的 \(\mathbf h_q\) 是格点 \(q\) 的滤波特征，\(A\) 是约束为半正定的二次型系数，
+\(\mathbf b\) 是线性项。受限版在这些通道上增加随局部状态变化的曲率修正，强度受相应基底系数的 20\% 限制。
+\textbf{求导。} 基底对任意两个滤波响应 $\delta\mathbf h_{q,k},\delta\mathbf h_{q,j}$ 的曲率由
+$\Delta V\sum_q\delta\mathbf h_{q,k}^{\top}A\,\delta\mathbf h_{q,j}$ 给出。
+受限版逐项加 Softplus 的解析二阶导，理想项也解析投影。两版外势求解都用解析 HVP。
+
+\textbf{训练损失。} 两版拟合同一组总内禀导数标签。令 $r=1,2$，$I$ 为一阶索引 $k$ 或二阶索引对 $(k,j)$。
+\begin{equation}
+\mathcal L_{\rm stable}(z)=
+ \sum_{r=1}^{2}
+ \frac{\sum_{b,I}\omega_{bI}\bigl(\hat y^{\rm int}_{r,bI}(z)-y^{\rm int}_{r,bI}\bigr)^2}
+      {\sum_{b,I}\omega_{bI}\bigl(y^{\rm int}_{r,bI}\bigr)^2}
+ +10^{-4}\|z\|_2^2 .
+ \label{eq:loss-stable}
+\end{equation}
+\fref{eq:loss-stable}{def:loss-stable}
+\defat{def:loss-stable}
+$z$ 是按每列敏感度缩放后的基底系数，部分非负以实现正定约束。一阶 $\omega=1$，
+二阶 $\omega=1/\pi_{kj}$。解析理想底项固定，待拟合部分对系数线性，因此用有界最小二乘求解。
+这两版的目标只含一阶、二阶及岭项。
+
+\begin{center}\small
+\begin{tabular}{lrrrr}\toprule
+100 条留出 & 总一阶 \(R^2\) & 总二阶 \(R^2\) & 二阶 RMSE & 非对角 \(R^2\)\\
+\midrule
+正定基底 & 0.743 & 0.872 & 625.0 & 0.867\\
+基底＋受限 MLP & 0.663 & 0.856 & 662.7 & 0.851\\
+\bottomrule
+\end{tabular}
+\end{center}
+\textbf{\color{warm}问题。} 27 个抽测状态的投影 Hessian 两版都没检出显著负曲率。
+基底和修正版的最软方向分别只有参考的约 16\% 和 12\%。
+\textbf{通过这次子空间的曲率符号检查，仍可能把曲率的大小算偏。} 两版真实外势均明显劣于初猜。
+{\footnotesize 数据 \path{experiments/xi_positive_total_pair/run_160219/summary.json}。}
+
+\clearpage
+\section{一条新外势如何变成一条预测密度曲线}\label{sec:iterate}
+
+\begin{center}
+\begin{tikzpicture}[node distance=6mm]
+\node[data] (a) {\card{\textcircled{\scriptsize 1} 读外势与体系设置}{盒子尺寸、分子组成、已知的原子外势}{构造盒中可试探的位置和取向}{一组离散化的可试探分子状态}{本次沿 \(z\) 分格，每个位置用 32 个取向／相位点}};
+\node[box,right=of a] (b) {\card{\textcircled{\scriptsize 2} 从外势给初猜}{\textcircled{\scriptsize 1}中每个分子构型的所有原子外势之和}{用 Boltzmann 权重得到初始分布}{试探权重向量 \(w\) 和一条初猜密度}{固定分子数，参考密度尚未读入}};
+\node[slow,below=of b] (c) {\card{\textcircled{\scriptsize 3} 计算当前试探分布的巨势}{当前 \(w\) 与训练好的模型}{求密度、\(\xiF\)、自由能以及梯度和 Hessian 作用}{当前 \(\beta\Omega\) 和可用的下降方向}{过量网络补解析理想项；总内禀网络直接用输出}};
+\node[slow,left=of c] (d) {\card{\textcircled{\scriptsize 4} 更新权重并判断收敛}{当前梯度、曲率和约束}{带阻尼牛顿；需要时改用投影下降；稳定核再做可行权重转移}{新试探权重或停止信号}{50 条模型最多 240 步；稳定核最多 60 步加 2500 次转移}};
+\node[box,below=of d] (e) {\card{\textcircled{\scriptsize 5} 生成最终剖面}{停止时的试探权重}{把原子贡献加到同一个轴向格点}{每个元素及总原子密度曲线}{保留三维取向，评价轴向剖面}};
+\node[data,right=of e] (f) {\card{\textcircled{\scriptsize 6} 读 MD 参考并打分}{预测密度和对应外势的独立 MD 密度}{分别计算初猜、迭代与 MD 的差}{原子密度 RMSE、相对误差、收敛信息}{50 条模型各 3 个外势；稳定核两版各 17 个}};
+\draw[arr] (a)--(b); \draw[arr] (b)--(c); \draw[arr] (c)--(d);
+\draw[arr] (d)--node[edge,left]{达到阈值或用完步数} (e); \draw[arr] (e)--(f);
+\draw[arr] ([xshift=7mm]d.south east) -- ([xshift=-7mm,yshift=-3mm]c.south west)
+ node[midway,below,edge]{未停止，代入新 \(w\)} -- ([xshift=4mm]c.south west);
+\end{tikzpicture}
+\end{center}
+
+\begin{equation}
+r_{\rm stat}=w^\top g-\min_i g_i,\qquad
+g=\nabla_w\bigl(\beta\Omega[\xiF(w);V_{\rm ext},\mu]\bigr),\qquad
+r_{\rm stat}\le10^{-7}.
+\label{eq:residual}
+\end{equation}
+\fref{eq:residual}{def:residual}
+\defat{def:residual}
+式~\ref{eq:residual} 的 $w$ 是试探分子状态的归一化非负权重，
+$\xiF(w)$ 由试探权重组装，$g_i$ 是巨势对相应权重的变化率。内禀项先对 $\xiF$ 求导，再传到 $w$。
+求解器把每个试探构型的原子外势能相加，再按 $w$ 加权。式~\ref{eq:residual} 的阈值判定模型驻点。
+密度 RMSE 和相对误差用独立 MD 作参考。
+
+\textbf{这里的 HVP 对 $w$ 求。} 对一个试探权重方向 $v$，牛顿求解需要
+$H_wv=\nabla_w(g^{\top}v)$，其中 $H_w$ 为巨势对 $w$ 的 Hessian。
+FFT、稀疏邻域和 CNN 的外势求解对 $g$ 做一次自动微分。稳定核把二次型、理想熵和受限 Softplus
+的解析曲率直接作用到 $v$。这些求解步骤按向量调用，训练数据的探针矩阵不上求解器。
+
+\textbf{本次求解的边界。} 这是固定粒子数的轴向剖面验证，保留三维分子取向。
+二维和三维方向的局部密度分布，以及化学势固定时粒子数的预测，需要另做验证。
+
+\clearpage
+\section{两套稳定核的 17 条外势对照}\label{sec:fieldresult}
+
+相同初始密度、相同参考、相同求解器。两套权重分别跑同样 17 个外势，不含训练标签中的参考密度输入。
+下表以从预测 $\xiF$ 读取的密度剖面 $\rho[\xiF]$ 打分，误差为 \(\|\rho[\xiF]-\rho^{\rm MD}\|_2/\|\rho^{\rm MD}\|_2\)。
+
+\begin{center}\small
+\begin{tabular}{lrrrrr}\toprule
+案例 & 初猜误差 & 基底误差 & 修正版误差 & 基底收敛 & 修正版收敛\\
+\midrule\val{baseComparison}\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}\small
+\begin{tabular}{lrrr}\toprule
+分组 & 初猜平均误差 & 基底平均误差 & 修正版平均误差\\
+\midrule
+全部 17 条 & 30.7\% & 130.7\% & 159.0\%\\
+留出的 NH$_3$、C$_2$H$_6$ 共 6 条 & 26.6\% & 132.8\% & 179.5\%\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{怎么判断问题在哪。} 正定基底比修正版在 16/17 个外势上误差更小，
+但两套模型都没有胜过初猜。基底只在 NH$_3$ 均匀场达到驻点，驻点残差为
+\(8.72\times10^{-8}\)，而密度误差从 48.4\% 升到 199.1\%。
+所以至少这个案例的主要问题是\textbf{模型喜欢一个错误的密度分布}，
+继续迭代不会把已求出的模型驻点变成 MD 参考态。
+对没有达到残差阈值的案例，求解器提前停下和自由能本身偏差仍需区分。
+
+\textbf{还缺哪项证据。} 现有二阶分数来自轨迹探针子空间。
+真实外势下，应分别在外势初猜、接近 MD 的可表示状态和模型迭代终点测同一尺度的平衡残差。
+这一对照可以进一步分清自由能给出的平衡位置偏了多少、求解器又贡献了多少误差。
+
+{\footnotesize 原始外势对照 \path{experiments/xi_positive_total_external/base_160503/compare.csv}。\\
+各网络的训练和留出表由同目录 \path{metrics.py} 读取原始结果生成。}
+
+
+
+\clearpage
+\section{71 条均相轨迹的完整元素响应核误差}\label{sec:bulk-audit}
+
+这节估计均相 MD 参考的有限帧采样误差。均相标签由 $\xiF$ 的元素密度读出构造，
+考察每个可靠波矢的完整元素对矩阵，包含元素间的非对角响应。
+训练、验证和测试的全部 71 条均相轨迹各使用原标签对应的 400 帧。
+每条轨迹沿时间分为 10 个连续块，固定全样本筛出的可靠波矢与元素子空间，逐次删掉一块，
+重算元素结构矩阵以及它在可靠子空间上的逆。
+
+\begin{equation}
+\begin{aligned}
+\overline C_{(-)} &=\frac1{B}\sum_{h=1}^{B} C_{(-h)},\\
+e_{\mathrm{JK}} &=
+\frac{\left[\frac{B-1}{B}\sum_{h=1}^{B}
+ \bigl\|C_{(-h)}-\overline C_{(-)}\bigr\|_{\mathrm F}^{2}\right]^{1/2}}
+ {\|C\|_{\mathrm F}},\qquad B=10 .
+\end{aligned}
+\label{eq:bulk-jk}
+\end{equation}
+\fref{eq:bulk-jk}{def:bulk-jk}
+\defat{def:bulk-jk}
+$C$ 是全段轨迹的均相超额 $c_2$ 核，$C_{(-h)}$ 是删去第 $h$ 个连续时间块后重算的核。
+$\|\cdot\|_{\mathrm F}$ 对所有保留波矢和元素对的矩阵元取模平方，求和后开根号。
+$e_{\mathrm{JK}}$ 是参考核的相对标准误。
+
+\begin{center}\small
+\begin{tabular}{lrrrrr}
+\toprule
+轨迹分组 & 条数 & 最小值 & 中位数 & 第 95 百分位 & 最大值\\
+\midrule
+所有均相 & 71 & 5.40\% & 5.61\% & 5.88\% & 5.98\%\\
+训练 & 42 & 5.40\% & 5.63\% & 5.91\% & 5.98\%\\
+验证 & 4 & 5.46\% & 5.60\% & 5.72\% & 5.73\%\\
+测试 & 25 & 5.47\% & 5.59\% & 5.74\% & 5.75\%\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{全量结果。} 完整元素响应核的相对标准误中位数为 5.61\%，最大为 5.98\%，
+最大值出现在 C$_2$H$_4$ 的稀薄体相（430.3 K，\texttt{source239}）。
+同一条 CH$_4$ 均相轨迹用全部 2000 帧重算后，400 帧参考核相对 2000 帧参考核的差异为 4.96\%。
+
+这些数值衡量保留波矢与元素子空间内的有限帧采样波动。有限盒、被筛除的模式及强外势下的偏差需要另行验证。
+这里的完整核覆盖 $\xiF$ 的元素密度方向。$\xiF$ 的环境标记方向在前文的微扰监督中计算。
+
+{\footnotesize 全量数据见
+\path{experiments/xi_spherical_hessian_pilot/bulk_audit_160520/}。\\
+逐条数据为 \texttt{trajectories.jsonl}，分组统计为 \texttt{summary.json}，复算入口为
+\texttt{bulk\_reference\_uncertainty.py}。}
+
+\end{document}

@@ -1,0 +1,436 @@
+\documentclass[UTF8,fontset=none,10pt,a4paper]{ctexart}
+\usepackage[margin=20mm]{geometry}
+\usepackage{fontspec,amsmath,amssymb,bm,booktabs,tabularx,tikz,hyperref}
+\usetikzlibrary{arrows.meta,positioning}
+\setmainfont{DejaVu Serif}
+\setCJKmainfont{NotoSansCJKsc-Regular.otf}[Path=/home/qiuyong/.local/share/fonts/noto-cjk-resume/,BoldFont=NotoSansCJKsc-Bold.otf,ItalicFont=NotoSansCJKsc-Regular.otf]
+\setCJKmonofont{Noto Sans Mono CJK SC}
+\hypersetup{colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black,pdftitle={保留完整径向轴的六层三维卷积自由能（修订版）}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlength{\emergencystretch}{3.5em}
+\raggedbottom
+\newcommand{\xiF}{\bm\xi}
+\newcommand{\X}{\bar{\bm\xi}}
+\newcommand{\Ex}{\mathcal F_{\mathrm{ex}}}
+\newcommand{\ExT}{\mathcal F_{\mathrm{ex},\theta}}
+\newcommand{\Id}{\mathcal F_{\mathrm{id}}}
+\newcommand{\Int}{\mathcal F_{\mathrm{int}}}
+\newcommand{\Ang}{\text{\AA}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\sd}[1]{\hfill\mbox{\footnotesize\hyperlink{sym:#1}{本式符号}}\par}
+\newcommand{\sym}[2]{\hypertarget{sym:#1}{\eqref{#1}} & #2 \\[3pt]}
+\tikzset{box/.style={draw=blue!55!black,fill=blue!3,rounded corners=2pt,minimum height=11mm,
+ text width=32mm,align=center,font=\small,inner sep=3pt},go/.style={-{Stealth[length=2.1mm]},semithick}}
+\newcommand{\flow}[5]{%
+ \begin{center}
+ \begin{tikzpicture}[node distance=4.4mm]
+ \node[box](a){#2};
+ \node[box,right=of a](b){#3};
+ \node[box,right=of b](c){#4};
+ \node[box,right=of c](d){#5};
+ \draw[go](a)--(b);\draw[go](b)--(c);\draw[go](c)--(d);
+ \end{tikzpicture}\\[1pt]
+ {\small #1}
+ \end{center}}
+\begin{document}
+{\LARGE\bfseries 保留完整径向轴的六层三维卷积自由能}\par
+{\large 六层单尺度与双尺度 CNN 的同条件对照 · 以导数为监督}\par
+\code{xi/conv3d}\hfill 2026 年 11 月
+
+% ===================== 0. 方法总览 =====================
+\section*{方法总览}
+这套方法不直接回归能量，而是学一个\emph{过量自由能泛函} $\Ex[\xiF]$，并让它的\emph{一阶、二阶泛函导数}去匹配从轨迹量出的标签：
+\begin{equation}\label{e:definition}
+ c_1[\xiF]= -\frac{\delta\Ex[\xiF]}{\delta\xiF},\qquad
+ c_2[\xiF]=\frac{\delta c_1[\xiF]}{\delta\xiF}
+           =-\frac{\delta^2\Ex[\xiF]}{\delta\xiF\,\delta\xiF}.
+\end{equation}
+式中 $\Ex=\beta F_{\rm ex}$，$\beta=(k_{\mathrm B}T)^{-1}$。在经典密度泛函理论（cDFT）里，一阶导数进入平衡方程。$c_2$ 是负的过量曲率，和解析理想项的曲率共同决定平衡密度对外势的线性响应。泛函一旦学会了 $c_1,c_2$，就能放进 Picard 迭代求外势下的密度。
+
+整条链路分四段：(1)原子坐标 $\to$ 三维场 $\xiF$（第 2 节）；(2)由探针重加权得到响应方向 $D_{bk}$ 和标签 $c_1,c_2$（第 3 节）；(3)六层三维 CNN 从场读出一个标量能量 $\ExT$（第 4 节）；(4)对同一个能量求一、二阶导，与探针标签及体相元素矩阵比对（第 5 节）。
+
+\flow{图 1\quad 原子场的计算路径}{\hyperref[e:mark]{原子坐标与邻居电子数}}
+ {\hyperref[e:mark]{径向–球谐标记\\每原子 128 分量}}
+ {\hyperref[e:frame]{周期三维沉积\\每格点、原子 129 通道}}
+ {\hyperref[e:weight]{轨迹帧加权平均\\状态场 $\X_b$}}
+
+\subsection*{符号约定：三种「场」}
+文档里出现三种都叫「场」的量，务必分清：
+\begin{center}\small
+\begin{tabularx}{.96\linewidth}{@{}l l X@{}}
+\toprule
+名称 & 符号 & 含义 \\
+\midrule
+三维原子场 & $\xiF$（状态平均记 $\X_b$） & 模型的\emph{输入}。每个格点–原子对 129 个通道，描述局部密度与径向–球谐结构。 \\
+外势 & $V_{\rm ext}$ & 物理上施加的势能，\emph{不进网络}；它只决定平衡点（式\eqref{e:picard}）。 \\
+变化场/方向 & $D_{bk}$ & 场空间里的一个\emph{方向}，不是真实场。由第 3 节探针重加权造出，用来量导数。 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+129 个通道的来历：通道 $0$ 是数密度；其余 $128=8\times16$ 是「8 个径向宽度 $\times$ 16 个角向分量」，16 由 $\ell=0,1,2,3$ 的 $2\ell+1$ 取和 $1+3+5+7=16$ 得到（第 2 节式\eqref{e:mark}）。
+
+% ===================== 1. 自由能、导数与变化场 =====================
+\section*{自由能、导数与变化场}
+模型以原子分辨的三维平均场 $\X_b$ 为输入，输出标量、无量纲的过量自由能 $\ExT=\beta F_{\mathrm{ex},\theta}$。所有导数都来自这一个输出。这里 $\beta=(k_{\mathrm B}T)^{-1}$，自由能及其导数均在各样本对应的温度和相互作用下定义。
+
+\paragraph{一阶与二阶。} 对当前场取一个\emph{变化场}（方向）$D$，一阶导数测量自由能沿 $D$ 的斜率；取两个变化场 $D,E$，二阶导数测量二者之间的交叉曲率。于是 $c_1$ 是一个「每点每通道一个数」的场，$c_2$ 是作用于两个方向的双线性型。式\eqref{e:definition} 用泛函导数给出了抽象定义。
+
+\paragraph{变化场 $D$ 是什么。} 场向量的维度为 $129\,Q\,N$，其中 $Q$、$N$ 分别为格点数与原子数。完整 Hessian 存储和测量代价很高，因此沿若干\emph{固定方向}取导。一个变化场 $D$ 与 $\xiF$ 同形，但只表示「往哪挪」，具体走多远由标量幅度 $\epsilon,\eta$ 控制：$\X_b+\epsilon D_{bk}$。下文 $D_{bk}$ 的下标 $b$ 是状态、$k$ 是方向编号（共 $P=48$ 个）。$D_{bk}$ 的构造在第 3 节式\eqref{e:tangent}，此处先把它当作已知的固定方向。
+
+\paragraph{如何在离散格点取导。} 在有限格点数组上，用幅度 $\epsilon,\eta$ 构造两条直线方向即可明确投影：
+\begin{equation}\label{e:project}
+ \widehat c_{1,bk}=-\left.\partial_\epsilon\,
+ \ExT[\X_b+\epsilon D_{bk}]\right|_{0},\qquad
+ \widehat c_{2,bkj}=-\left.\partial_\epsilon\partial_\eta\,
+ \ExT[\X_b+\epsilon D_{bk}+\eta D_{bj}]\right|_{0,0}.
+\end{equation}
+这里 $D_{bk},D_{bj}$ 在求导时固定，因此第二式取的是 Hessian 的双线性型。帽号表示网络预测。若让幅度沿曲线 $\X(\bm\lambda)$ 连续变化，还会多出一阶导数与 $\partial^2\X/\partial\lambda_k\partial\lambda_j$ 的乘积项；本方法刻意让方向固定以避开它。\sd{e:project}
+
+\paragraph{这些导数用来做什么。}
+沿用原子分辨的场 $\xiF$。写 $\rho_{qE}[\xiF]=\sum_{i\in E}\xi_{qi0}$，
+其在格点 $q$ 上的元素占据数为 $\Delta V\rho_{qE}[\xiF]$。
+$\Id[\xiF]=\sum_{qE}n_{qE}[\xiF](\ln n_{qE}[\xiF]-1)$，
+其中 $n_{qE}[\xiF]=\Delta V\rho_{qE}[\xiF]$，空占据按极限取零。$\Ex[\xiF]$ 由模型给出。
+设 $\rho_E[\xiF]$ 是对应的元素密度场，$N_E[\xiF]=\int\rho_E[\xiF]\,\mathrm d\bm r$。
+\begin{equation}\label{e:picard}
+\begin{aligned}
+ \Int[\xiF]&=\Id[\xiF]+\Ex[\xiF],\\
+ \beta\Omega[\xiF;V_{\rm ext},\mu]&=\Int[\xiF]
+ +\sum_E\int \beta V_{{\rm ext},E}(\bm r)\rho_E[\xiF](\bm r)\,\mathrm d\bm r
+ -\sum_E\beta\mu_E N_E[\xiF],\\
+ D_{\xiF}(\beta\Omega)[\xiF_*](D)&=0
+ \qquad\text{对任一允许双向变化的方向 }D .
+\end{aligned}
+\end{equation}
+$V_{{\rm ext},E}$ 是元素 $E$ 的单原子外势，$\mu_E$ 是对应化学势。
+固定分子数的验证中，化学势项为常数。
+$\xiF_*$ 为驻点场。允许方向须保持组成约束，单侧可行方向在最小值处满足方向导数非负。
+这里的一阶项由 $\Id$ 的解析导数、$-c_1$ 和已知外势共同组成，
+二阶曲率由 $\Id$ 的解析二阶导数和 $-c_2$ 组成。\sd{e:definition}\sd{e:picard}
+
+% ===================== 2. 从原子坐标构造三维场 =====================
+\section*{从原子坐标构造三维场 $\xiF$}
+第 $t$ 帧原子 $i$ 以最小镜像向量 $\bm r_{ia}^{(t)}$ 查找半径 $r_c=5\,\Ang$ 内的邻居 $a\ne i$。构造分三步：径向基、球谐标记、周期沉积。
+
+\subsection*{2.1 径向基}
+径向高斯都以零为中心，用由窄到宽的八个宽度区分距离，再乘截断包络：
+\begin{equation}\label{e:radial}
+ \begin{gathered}\sigma_n=0.5\,\Ang\,5^{n/7},\qquad u=r/r_c,\\
+ B_n(r)=
+ \begin{cases}
+ e^{-r^2/(2\sigma_n^2)}(1-u)^3(1+3u+6u^2+10u^3+15u^4+21u^5),&0\le r<r_c,\\
+ 0,&r\ge r_c.
+ \end{cases}\end{gathered}
+\end{equation}
+$n=0,\ldots,7$（共 8 个径向档），$r=\|\bm r_{ia}^{(t)}\|$ 是中心原子到邻居的距离。$\sigma_n$ 是第 $n$ 个高斯的宽度，从 $0.5\,\Ang$（$n=0$）到 $2.5\,\Ang$（$n=7$）。$u=r/r_c$ 是无量纲距离（$0$ 到 $1$），后面多项式是截断包络，保证 $r\to r_c$ 时平滑归零。\sd{e:radial}
+
+\subsection*{2.2 球谐标记}
+对每个邻居，电子数 $Z_a$ 乘以其径向和角向基值再累加：
+\begin{equation}\label{e:mark}
+ \begin{aligned}
+ h&=\ell^2+\ell+m,& A&=1+16n+h,&
+ v_{ti,n\ell m}
+ &=\sum_{a\ne i}Z_a B_n(r)\,u^\ell
+     Y_{\ell m}^{\mathrm{real}}(\widehat{\bm r}_{ia}^{(t)}),\\
+ Z_{\mathrm H}&=1,& Z_{\mathrm C}&=6,&Z_{\mathrm N}&=7,\quad Z_{\mathrm O}=8 .
+ \end{aligned}
+\end{equation}
+$i$ 是中心原子，$a$ 是被累加的邻居；$a\ne i$ 只排除原子自身，不排除同种元素（以水的一个 H 为中心时，另一个 H 照样计入）。$Z_a$ 是电子数，用来区分元素并加权。$u^\ell$ 让 $\ell>0$ 的通道在原点趋于零。实球谐的取法：复球谐 $Y_\ell^{|m|}$ 的实部（$m>0$）或虚部（$m<0$）乘 $\sqrt{2}(-1)^{|m|}$，$m=0$ 直接取实部。通道 $A=0$ 单独留给原子数密度。\sd{e:mark}
+
+\paragraph{为什么是 16 和 129。} $\ell=0,1,2,3$，每个 $\ell$ 有 $m=-\ell,\ldots,\ell$ 共 $2\ell+1$ 个，合计 $1+3+5+7=16$ 个角向分量（编号 $h=0,\ldots,15$）。于是每个原子得到 $8\ (\text{径向})\times 16\ (\text{角向})=128$ 个结构通道，加上通道 $0$ 的密度，共 $1+8\times16=129$。通道号由 $A=1+16n+h$ 唯一确定；反过来，给定 $A\ge1$ 可由 $n=\lfloor (A-1)/16\rfloor$、$h=(A-1)\bmod16$ 还原 $(n,\ell,m)$。
+
+\subsection*{2.3 周期沉积与帧加权}
+格点按正交周期盒构造。每个方向 $d\in\{x,y,z\}$ 取 $N_d=\lceil L_d/(0.5\,\Ang)\rceil$ 个网格，体积 $\Delta V=\prod_d(L_d/N_d)$。令 $r_{ti,d}$ 为第 $t$ 帧原子 $i$ 在轴 $d$ 上的笛卡尔坐标（模 $L_d$），
+\[
+ y_d=[(r_{ti,d}\bmod L_d)/L_d]N_d-\tfrac12,\quad
+ j_d=\lfloor y_d\rfloor,\quad f_d=y_d-j_d .
+\]
+原子在每轴落到 $j_d$ 和 $j_d+1$ 的权重分别为 $1-\varsigma_d$ 和 $\varsigma_d=f_d^2(3-2f_d)$（smoothstep）。取三轴权重之积，得到八个周期格点的权重 $S_{tqi}$，其和为 1。每帧场为
+\begin{equation}\label{e:frame}
+ \begin{aligned}
+ \xi^{(t)}_{qi0}&=S_{tqi}/\Delta V,\\
+ \xi^{(t)}_{qiA}&=(S_{tqi}/\Delta V)\,v_{ti,n\ell m} \quad(A\geq 1),\\
+ \X_{b,qiA}&=\sum_t w_{bt}\xi^{(t)}_{qiA}.
+ \end{aligned}
+\end{equation}
+$q$ 是三维格点，$i$ 是同一轨迹内的原子位置索引，$A$ 是通道。前两行是\emph{一帧}的场：原子 $i$ 把通道 $0$ 的密度份额、通道 $A\ge1$ 的「密度份额 $\times$ 结构」，按 $S_{tqi}$ 分给周围 8 个格点。第三行用帧权重 $w_{bt}$（第 3 节式\eqref{e:weight}）把多帧加权平均，得到状态 $b$ 的场。给定通道 $A\ge1$，其 $v_{ti,n\ell m}$ 的 $(n,\ell,m)$ 由 $A=1+16n+\ell^2+\ell+m$ 确定。\sd{e:frame}
+
+\textbf{可复算几何例。} 若某轴 $f_d=0.25$，则该轴高侧权重为 $\varsigma_d=f_d^2(3-2f_d)=0.15625$，低侧为 $1-\varsigma_d=0.84375$。若三轴都为 $0.25$，高–高–高格点的权重是 $0.15625^3=0.0038146973$。乘 $1/\Delta V$ 就是该格点中此原子的密度贡献。
+
+% ===================== 3. 探针、响应方向、投影与参考标签 =====================
+\section*{探针、响应方向、投影与参考标签}
+第 1 节把 $D_{bk}$ 当作已知方向；本节说明它怎么由\emph{探针重加权}造出，并给出参考标签 $c_1,c_2$。
+
+\subsection*{3.1 探针形状与 48 个方向}
+每条轨迹有 32 个空间探针 $k=0,\ldots,31$，只作用于通道 $A=0$。每个探针中心 $\bm a_k$ 在周期盒中随机选取并存档。令 $\bm v$ 为从 $\bm a_k$ 到格点 $q$ 的最小镜像向量，$r=\|\bm v\|$，$u=r/r_c$。
+
+这批已保存的空间探针采用与式\eqref{e:radial}\emph{不同}的径向基：中心在 $r_n=nr_c/7$（壳层半径），宽度 $r_c/7$。它只用于构造探针 $\psi_k$，与场的径向基相互独立。空间探针取 $n=k\bmod8$、$h=k\bmod16$，再由 $h$ 还原 $(\ell,m)$。当 $r<r_c$ 时
+\begin{equation}\label{e:probe}
+ \phi_k(q)=e^{-\frac12((r-r_n)/(r_c/7))^2}\,
+ (1-28u^6+48u^7-21u^8)\,u^\ell\,Y_{\ell m}^{\rm real}(\hat{\bm v}),
+\end{equation}
+超出 $r_c$ 时取零。$\psi_{k,q0}=\phi_k(q)$。\sd{e:probe}
+
+\paragraph{编号为什么这样分。} $k$ 与 $k+16$ 的 $(n,h)$ 相同，但中心 $\bm a_k$ 不同，所以 32 个空间探针只覆盖 16 种形状，每种在两个独立随机中心各放一次。对 $k=32+h$（$h=0,\ldots,15$），取 $\psi_{k,q,65+h}=\phi_h(q)$，即扰动第 5 个径向基（$n=4$，通道 $65=1+16\times4$）上的 16 个球谐通道。于是总数 $32\ (\text{空间})+16\ (\text{角向})=48=P$ 个方向。每个探针只给指定通道赋值，其余通道取零；幅度 $\lambda_{bk}$ 决定戳多深（空间幅度继承预处理；角向/混合幅度抽标准高斯后缩到 $0.15$–$1.5$ 的八档）。
+
+\subsection*{3.2 重加权：探针能量与帧权重}
+探针在一帧上的势能、以及由此得到的帧权重为
+\begin{equation}\label{e:weight}
+ \begin{aligned}
+ U_{tk}&=\Delta V\sum_{q,i,A}\psi_{k,qA}\xi^{(t)}_{qiA},\\
+ U_{bt}&=\sum_k\lambda_{bk}U_{tk},&
+ w_{bt}&=\frac{\exp(-U_{bt})}{\sum_s\exp(-U_{bs})},&
+ \langle U_k\rangle_b&=\sum_t w_{bt}U_{tk}.
+ \end{aligned}
+\end{equation}
+$U$ 已乘 $\beta$，$\lambda_{bk}$ 为无量纲幅度。第 2 行说明：一个\emph{状态} $b$ 就是一组幅度 $\{\lambda_{bk}\}$；换一组幅度就是另一个状态。Boltzmann 重加权给原轨迹每帧乘权重 $\exp(-U_{bt})$，以有限参考帧估计该探针作用下的系综平均。$w_{bt}$ 在同一轨迹内对帧归一。\sd{e:weight}
+
+\paragraph{ESS 筛选。} 对概率向量 $p$ 定义有效样本数 $\mathrm{ESS}(p)=1/\sum_a p_a^2$。帧数记为 $T_{\mathrm f}$，帧 ESS 下限为 $\max(\min(50,T_{\rm f}),0.30T_{\rm f})$，将帧划为 $N_{\rm blk}=\min(20,T_{\mathrm f})$ 个连续块，对每块先求权重和 $p_g=\sum_{t\in g}w_{bt}$。块权重向量的 $\mathrm{ESS}=1/\sum_g p_g^2$ 须至少为 $\min(10,N_{\rm blk})$。达不到门槛的状态被丢弃，避免用少数帧硬凑的噪声标签。
+
+\subsection*{3.3 响应方向 $D_{bk}$}
+把第 $k$ 个幅度调大，状态场会往某方向变；这个方向就是 $D_{bk}$。先对归一化权重求导，再乘各帧的场：
+\begin{equation}\label{e:tangent}
+ \dot w_{btk}=\frac{\partial w_{bt}}{\partial\lambda_{bk}}
+      =-w_{bt}(U_{tk}-\langle U_k\rangle_b),\qquad
+ D_{bk}=\frac{\partial\X_b}{\partial\lambda_{bk}}
+      =\sum_t\dot w_{btk}\xi^{(t)}.
+\end{equation}
+$D_{bk}$ 与 $\X_b$ 同形。第一式是 softmax 求导的标准结果；$\dot w_{btk}$ 对帧求和为零，故 $D_{bk}$ 是「此消彼长」的对比方向。同一探针在不同状态可给出不同的 $D_{bk}$。探针与幅度只用来构造场和方向，不作为网络输入。\sd{e:tangent}
+
+\subsection*{3.4 参考标签 $c_1,c_2$}
+有了方向，就用式\eqref{e:project}的投影量 $\widehat c_1,\widehat c_2$ 与这里的标签比对。先定义元素占据及其响应：
+\[
+ N_{t,qE}=\sum_{i\in E}S_{tqi},\quad
+ \mu_{b,qE}=\sum_t w_{bt}N_{t,qE},\quad
+ d_{bk,qE}=\sum_t\dot w_{btk}N_{t,qE},
+\]
+即第 $t$ 帧格点 $q$ 上元素 $E$ 的占据数、其状态平均、以及对探针 $k$ 的响应。过量自由能 $\Ex=\Int-\Id$，其中离散理想参考 $\Id=\sum_{qE}\mu_{b,qE}(\ln\mu_{b,qE}-1)$。由总内禀自由能的切向导数 $\Int'[D_{bk}]=-\sum_t U_{bt}\dot w_{btk}$ 和二阶投影 $\Int''[D_{bk},D_{bj}]=C_{bkj}$，得到
+\begin{equation}\label{e:targets}
+ \begin{aligned}
+ C_{bkj}&=\sum_t w_{bt}(U_{tk}-\langle U_k\rangle_b)(U_{tj}-\langle U_j\rangle_b),\\
+ c_{1,bk}&=\sum_t U_{bt}\dot w_{btk}
+             +\sum_{qE:\mu>0} \ln(\mu_{b,qE})\,d_{bk,qE},\\
+ c_{2,bkj}&=-C_{bkj}+\sum_{qE:\mu>0}
+             \frac{d_{bk,qE}d_{bj,qE}}{\mu_{b,qE}} .
+ \end{aligned}
+\end{equation}
+$C_{bkj}$ 是两个探针能量的加权协方差。在可达响应方向上，$C_{bkj}$ 等于总内禀自由能 Hessian 的投影。若对微扰幅度的系综自由能 $-\ln Z$ 求二阶导，结果为 $-C_{bkj}$。带 $\ln\mu$、$1/\mu$ 的项是理想项的修正（来自 $[x(\ln x-1)]'=\ln x$、$[x(\ln x-1)]''=1/x$），只对 $\mu>0$ 求和。平衡条件另给出等价的 $C_{bkj}=-\Delta V\sum\psi_j D_{bk}$。\sd{e:targets}
+
+\flow{图 2\quad 参考标签的计算路径}{\hyperref[e:weight]{每原子探针势能\\与微扰振幅}}
+ {\hyperref[e:weight]{重加权及 ESS\\筛选状态}}
+ {\hyperref[e:tangent]{场的响应 $D_{bk}$\\和元素占据响应}}
+ {\hyperref[e:targets]{减理想参考\\$P$ 个 $c_1$、$P^2$ 个 $c_2$}}
+
+% ===================== 4. 六层网络 =====================
+\section*{六层网络（保留完整径向轴）}
+本分支保留全部径向与角向分量，卷积前不做径向降维。以原始 $\xi_{qiA}$ 为输入，先在格点内汇总原子标记及元素密度：
+\begin{equation}\label{e:pool}
+ X_{qA}=\sum_i\xi_{qiA},\quad R_{qE}=\sum_{i:E_i=E}\xi_{qi0},\quad
+ s_q=[X_{q0},(R_{qE})_{E=\mathrm{C,H,N,O}},(X_{q,1+16n})_{n=0}^7].
+\end{equation}
+$X_{qA}$ 是格点 $q$ 的总标记（把原子下标 $i$ 加掉），$R_{qE}$ 是按元素 $E$ 分组的密度，$s_q$ 是 13 个标量（$1$ 个总密度 $+4$ 个元素密度 $+8$ 个 $\ell=0$ 径向）。$E_i$ 只决定密度分组。所有 $n=0,\ldots,7$ 及 $m=-\ell,\ldots,\ell$ 都直接进入卷积，各角阶输入矩阵为
+\begin{equation}\label{e:net}
+ A^{(\ell)}_{q,nm}=X_{q,1+16n+\ell^2+\ell+m},\quad
+ \ell=1,2,3,\qquad
+ 13+8(3+5+7)=133 .
+\end{equation}
+通道记账：$133=\underbrace{13}_{\text{标量}}+\underbrace{8\times(3+5+7)}_{120\ \text{角向}}$；其中 $13$ 里的「$1$ 个总密度 $+8$ 个 $\ell=0$」来自 129 通道，「$4$ 个元素密度」由通道 $0$ 按元素分组额外得到。因此 $133=129+4$。角向支路保持 $8\times3$、$8\times5$、$8\times7$ 三块，共 $24$ 个 $(n,\ell)$ 组。\sd{e:pool}\sd{e:net}
+
+\subsection*{4.1 空间卷积}
+卷积对 13 个标量通道与 24 个 $(n,\ell)$ 组各学一个短核，同组所有 $m$ 共用空间权重。两版的第一层都用同一个 5 \AA\ 球形短核。双尺度版另有 12 \AA\ 的元素密度支路：
+\begin{equation}\label{e:kernel}
+ \begin{aligned}
+ y_{q,c}&=\sum_\delta K^{\rm short}_c(\delta)x_{q-\delta,c},\qquad
+ K^{\rm short}_c(\delta)=\sum_{\nu=1}^4a_{c\nu}\gamma_\nu^{5}(\delta),\\
+ \zeta_{qE}&=\sum_{\nu=1}^2 \kappa_{E\nu}
+                  [\gamma_\nu^{12}*(R_E-\bar R_E)]_q\quad\text{（双尺度版）}.
+ \end{aligned}
+\end{equation}
+$\gamma_\nu^5$ 的高斯宽度为 $(0.5,0.9,1.5,2.5)\,\Ang$，在 $5\,\Ang$ 平滑截断。$\gamma_\nu^{12}$ 的宽度为 $(4,6)\,\Ang$，在 $12\,\Ang$ 截断。长核额外乘开启因子 $6v^5-15v^4+10v^3$，其中 $v=\operatorname{clip}((r-4\,\Ang)/(2\,\Ang),0,1)$。两种核采用式\eqref{e:radial}的截断包络，各自按格点总权重归一化。$\bar R_E$ 为盒平均元素密度。$\delta$ 为三维格点位移，各卷积均按周期边界执行。\sd{e:kernel}
+
+\textbf{首层与后五层的核不同。} 首层用 5 \AA\ 球形短核 $K^{\rm short}$；第 2--6 层改用 $\pm1$ 格三轴邻格卷积 $T_\lambda$（式\eqref{e:energy}），两者不是同一个核。
+
+\subsection*{4.2 不变量与六层读出}
+第一层卷积的同角阶输出记为 $Y^{(\ell)}_{q,nm}$（$8$ 个径向 $\times\,2\ell+1$ 个 $m$）。对每个 $\ell$，取 $8$ 个径向之间的内积（对 $m$ 求和），得到 $8\times8$ 的完整径向 Gram 阵 $G_q^{(\ell)}=Y_q^{(\ell)}(Y_q^{(\ell)})^\top$；取其含对角的上三角，共 $3\times 8\times9/2=108$ 个对称不重复的内积，与 13 个标量拼成 $I_q$。单尺度版 $I_q$ 为 $121=13+108$ 维，双尺度版再加长支 $4$ 维（$\zeta_{qE}$ 对 4 个元素各一个）为 $125$ 维。六层输出都为 64 通道：
+\begin{equation}\label{e:energy}
+ \begin{aligned}
+ z_{1,q}&=W_1 I_q+b_1, \qquad
+ z_{\lambda,q}=[T_\lambda*(W_\lambda h_{\lambda-1})]_q+b_\lambda\quad (2\le\lambda\le 6),\\
+ T_\lambda&=t_{\lambda0}\delta_0+
+    \tfrac16 t_{\lambda1}\sum_{d}(\delta_{e_d}+\delta_{-e_d}),\qquad
+ h_{\lambda,q}=\operatorname{sp}(z_{\lambda,q})-\operatorname{sp}(b_\lambda),\\
+ \ExT&=\Delta V\sum_q \omega^\top h_{6,q}.
+ \end{aligned}
+\end{equation}
+$\operatorname{sp}$ 为 Softplus。$W_\lambda$ 是逐点线性混合，$T_\lambda$ 是三轴邻格卷积（每层每通道各有中心 $t_{\lambda0,c}$ 与邻格 $t_{\lambda1,c}$ 两组权重，共 $2\times64$），$\lambda=2,\ldots,6$ 依次串联；末端线性读出并对体积求和，减 $\operatorname{sp}(b_\lambda)$ 使空场贡献为零。宽度 64 大于单态探针数 48，使线性层不至于把 48 个独立方向压到更低。\sd{e:energy}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[x=1cm,y=1cm,
+ panel/.style={draw=blue!60!black,fill=blue!4,rounded corners=2pt,align=center,inner sep=3pt,font=\small},
+ orangebox/.style={panel,draw=orange!65!black,fill=orange!10},
+ stage/.style={panel,fill=cyan!9,minimum width=17mm,minimum height=7mm},
+ arrow/.style={-{Stealth[length=1.9mm]},semithick}]
+ \node[panel,minimum width=99mm] (trunk) at (8,0)
+  {输入 \quad $\bar\xi_b$ 的 129 通道 + 4 个元素密度};
+ \node[panel,minimum width=74mm] (local) at (5.1,-.97)
+  {\hyperref[e:kernel]{\textbf{第 1 层空间卷积}\quad 5 \AA\ 球形短核}\\13 标量 + 24 组卷积（组内 $m$ 共享权重）};
+ \draw[arrow] (trunk.south)--++(0,-.14)-|(local.north);
+ \node[panel,minimum width=82mm] (i) at (5.1,-2.00)
+  {\hyperref[e:energy]{13 个标量 + 108 个不重复的径向内积}};
+ \draw[arrow] (local)--(i);
+ \node[stage] (a1) at (1.30,-3.23) {第 1 层\\121/125 $\to$ 64};
+ \node[stage] (a2) at (3.47,-3.23) {第 2 层\\64};
+ \node[stage] (a3) at (5.64,-3.23) {第 3 层\\64};
+ \node[stage] (a4) at (7.81,-3.23) {第 4 层\\64};
+ \node[stage] (a5) at (9.98,-3.23) {第 5 层\\64};
+ \node[stage] (a6) at (12.15,-3.23) {第 6 层\\64};
+ \node[panel,minimum width=22mm] (f) at (14.67,-3.23) {$\ExT[\xiF]$\\对 $\xiF$ 求导};
+ \draw[arrow] (i.south)--++(0,-.17)-|(a1.north);
+ \node[orangebox,minimum width=54mm] (long) at (12.9,-1.73)
+   {（仅双尺度版）12 \AA\ 长支\\$R_E-\bar R_E$ 的径向卷积，4 维};
+ \draw[arrow,draw=orange!70!black,dashed] (trunk.east) -- ++(.26,0) |- (long.north);
+ \draw[arrow,draw=orange!70!black,dashed] (long.south) -- ++(0,-.10) -| ([xshift=7mm]a1.north);
+ \draw[arrow] (a1)--(a2);\draw[arrow] (a2)--(a3);\draw[arrow] (a3)--(a4);
+ \draw[arrow] (a4)--(a5);\draw[arrow] (a5)--(a6);\draw[arrow] (a6)--(f);
+ \node[font=\scriptsize,align=center] at (7.7,-3.87)
+  {第 2--6 层各多读一格的三维邻域。末端线性读出并按体积求和。};
+\end{tikzpicture}\par\vspace{2pt}
+{\small 图 3\quad 六层 CNN 网络图。（橙色虚线长支仅双尺度版有）}
+\end{minipage}
+\end{center}
+
+% ===================== 5. 全投影导数与均相矩阵监督 =====================
+\section*{全投影导数与均相矩阵监督}
+网络的 $c_1,c_2$ 都来自同一个标量 $\ExT$。方向导数由解析链式法则计算，PyTorch 自动微分用于训练 loss 对参数的反传。
+
+\subsection*{5.1 沿探针方向的一、二阶导}
+固定探针方向后，卷积和线性层作用在每条方向上。若第 $\lambda$ 层预激活沿方向 $k$ 的变化是 $z_{\lambda,k}$，激活的反向伴随量是 $a_\lambda$，则二阶导为
+\begin{equation}\label{e:jet}
+ G_{kj}=Y_kY_j^\top+Y_jY_k^\top,\qquad
+ \partial_{kj}\ExT=\Delta V\sum_q
+ \Big[a_I^\top I_{kj}
+       +\sum_{\lambda=1}^6 a_\lambda^\top
+          \big(\operatorname{sp}''(z_\lambda)\odot z_{\lambda,k}\odot z_{\lambda,j}\big)\Big].
+\end{equation}
+$G_{kj}$ 由两个固定方向的角向输出交叉相乘并对称化，正是 $I_{kj}$ 的角向部分。$a_\lambda$ 是局部能量和对第 $\lambda$ 层激活 $h_\lambda$ 的伴随，$a_I$ 为对特征 $I$ 的伴随。第 2–6 层回传用卷积的转置，按空间块累加。按式\eqref{e:project}的负号约定得到 $\widehat c_1,\widehat c_2$。两版均逐态比较全部 $48$ 个一阶和 $48^2$ 个二阶投影。\sd{e:jet}
+
+\subsection*{5.2 体相元素结构矩阵 $S(\bm k)$}
+设训练轨迹的未扰动帧共有 $N_E$ 个元素 $E$ 原子。用与式\eqref{e:frame}相同的沉积网格得到每帧的元素密度 $R^{(t)}_{qE}$，做傅里叶变换、按 $\sqrt{N_E}$ 归一，再取涨落的协方差：
+\begin{equation}\label{e:elements}
+ X_{tE}(\bm k)=\frac{\Delta V}{\sqrt{N_E}}\sum_q R^{(t)}_{qE}e^{-\mathrm i\bm k\cdot\bm x_q},
+ \quad
+ \mathcal S(\bm k)=\left\langle\Delta\bm X_t(\bm k)\,
+                  \Delta\bm X_t(\bm k)^\dagger\right\rangle_t .
+\end{equation}
+$\Delta\bm X_t=\bm X_t-\langle\bm X_t\rangle_t$ 是涨落（「连接」=扣掉均值，只留涨落），$\dagger$ 是共轭转置。除以 $\sqrt{N_E}$ 使 $\mathcal S$ 无量纲。未做格点沉积的理想独立点粒子在非零模上给出单位矩阵。分子内关联与沉积核均可改变本数据的 $\mathcal S$。$\bm k=2\pi(n_x/L_x,n_y/L_y,n_z/L_z)$；保存 $0<|\bm k|\le2.4\,\Ang^{-1}$ 的波矢，每对 $\pm\bm k$ 取一个。保留本征值满足 $\lambda_j>\max(0.02,0.01\lambda_{\max})$ 且十个连续时间块相对标准误 $\le35\%$ 的方向；固定元素计数的零模不产生标签。$S(\bm k)$ 是元素分辨的静态结构矩阵，它的逆给出体相曲率参考 $1/\lambda_j$（涨落–响应）。\sd{e:elements}
+
+\subsection*{5.3 体相曲率核与匹配}
+定义 $M=\mathrm{diag}(N_E/V)$，保持每种元素的均相 $\ell=0$ 标记固定、高角阶均值为零。$J_\lambda$ 是「归一化密度波」经前 $\lambda$ 层传播后、各层预激活对元素密度波的导数。第 2–6 层的余弦核响应为 $T_\lambda(\bm k)=t_{\lambda0}+(t_{\lambda1}/3)\sum_d\cos(k_d\Delta_d)$。归一化总内禀曲率为 $H^\star_\theta=M^{1/2}H_{\theta,\rm int}M^{1/2}$：
+\begin{equation}\label{e:bulk}
+ H^\star_\theta(\bm k)=\mathbf 1+\sum_{\lambda=1}^6
+   J_\lambda^\top\,\mathrm{diag}\big(a_\lambda\odot\operatorname{sp}''(z_\lambda)\big)J_\lambda,
+ \qquad H_U^{\rm ref}(\bm k)=\mathrm{diag}(1/\lambda_j).
+\end{equation}
+$J_1=W_1\mathcal B(\bm k)$，$\mathcal B$ 是第一空间层在给定波矢下把归一化元素密度映到标量特征的矩阵；之后 $J_\lambda=\operatorname{diag}(T_\lambda(\bm k))W_\lambda\operatorname{diag}(\operatorname{sp}^\prime(z_{\lambda-1}))J_{\lambda-1}$，反向伴随用零波数 $T_\lambda(0)$。$\mathbf 1$ 是理想项贡献的单位矩阵。直观上：$\mathcal B$ 把「密度波」变成「通道波」，$T_\lambda(\bm k)$ 是卷积对该波长的缩放，$a_\lambda\operatorname{sp}''$ 是读出的弯曲度，合起来就是模型认定的「弹簧常数」。$U,\lambda_j$ 是体相结构矩阵的可靠模式。\sd{e:bulk}
+
+\subsection*{5.4 总损失}
+每步用完整的 48 投影和同轨迹的体相元素矩阵：
+\begin{equation}\label{e:loss}
+ \begin{aligned}
+ L_{\rm elem}&=
+ \frac{\sum_{\bm k}\|U_{\bm k}^\dagger H^\star_\theta(\bm k)U_{\bm k}
+                         -H^{\rm ref}_U(\bm k)\|_{\rm F}^{2}}
+      {\sum_{\bm k}\|H^{\rm ref}_U(\bm k)\|_{\rm F}^{2}},\\
+ {\cal L}&=\frac1{N_bP}\sum_{b,k}\left(\frac{\hat c_{1,bk}-c_{1,bk}}{s_1}\right)^2
+ +\frac1{N_bP^2}\sum_{b,k,j}\left(\frac{\hat c_{2,bkj}-c_{2,bkj}}{s_2}\right)^2
+ +L_{\rm elem}.
+ \end{aligned}
+\end{equation}
+$N_b\le96$ 为一次更新的状态数，$P=48$，$s_1,s_2$ 为训练集对应标签的全元素 RMS，均设 $10^{-12}$ 下限。每次实际处理 1 态并累加投影梯度，元素损失每次更新加一次。AdamW 学习率 $3\times10^{-4}$，裁剪范数 10，随机种子 617。实际反馈分别统计完整 $c_2$、对角与非对角、以及元素块误差。绝对化学势偏移需独立标定。\sd{e:loss}
+
+\flow{图 4\quad 同一个自由能的两组训练约束}{\hyperref[e:project]{沿 $D_k,D_j$ 取导\\全投影 $c_1,c_2$}}
+ {\hyperref[e:targets]{轨迹重加权\\超额导数标签}}
+ {\hyperref[e:bulk]{均相体相波\\元素矩阵曲率}}
+ {\hyperref[e:loss]{合并训练 loss\\更新 CNN 参数}}
+
+% ===================== 6. 训练数据、运行与参数 =====================
+\section*{训练数据、运行与参数}
+\subsection*{6.1 数据划分与独立留出}
+\begin{center}\small
+\begin{tabularx}{.93\linewidth}{@{}lrrX@{}}
+\toprule
+用途 & 轨迹数 & 状态数 & 使用方式 \\
+\midrule
+训练 & 42 & 46\,547 & 求标签尺度，更新权重 \\
+验证 & 4 & 4\,671 & 冻结最终权重后评分 \\
+留出测试 & 25 & 25\,518 & NH$_3$、C$_2$H$_6$ 整分子留出 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+每个状态是同一条参考轨迹在指定微扰下的重加权均值；同一轨迹产生的状态归入同一分割。轨迹编号、帧序号、分子标签和外势参数不作为网络输入；微扰仅用于构造重加权状态与响应方向，真实外势测试轨迹未用于训练。这次两种 CNN 取完全相同的 10\,000 条训练、1\,000 条验证、NH$_3$ 与 C$_2$H$_6$ 各 1\,000 条测试，均从随机参数训练 1 轮，每态使用完整 48 探针。
+
+\subsection*{6.2 独立运行入口}
+从项目根目录分别提交两种 CNN：
+\begin{quote}\footnotesize
+\code{sbatch experiments/xi_conv3d_sixlayer/train.slurm single}\\
+\code{sbatch experiments/xi_conv3d_sixlayer/train.slurm multiscale}
+\end{quote}
+两个作业先用真实轨迹各跑 1 条训练、1 条验证和 2 条留出的小测，然后重新随机初始化进入正式训练。两者用同一 48 投影清单、轨迹分组、抽样种子和体相索引。单尺度复制同一随机初始化中的共同参数，仅去掉 12 Å 长支及其到第一隐层的四列权重。
+
+\subsection*{6.3 参数与作业}
+首层有 $13+24=37$ 个短核组，每组四个权重。双尺度版另有 $4\times2=8$ 个长核权重。后五层各有 $64\times2$ 个空间权重。末层只使用线性权重，存储的输出偏置不参与计算。两个模型的投影值与参数梯度已和自动求导对照。单尺度作业 159495，双尺度作业 159494。两版的真实外势迭代精度尚待检验。
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}lrrrrX@{}}
+\toprule
+模型 & 空间核 & 第一层混合 & 后五层混合 & 输出层 & 总参数\\
+\midrule
+单尺度 CNN & 788 & 7808 & 20800 & 65 & 29461\\
+双尺度 CNN & 796 & 8064 & 20800 & 65 & 29725\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% ===================== 附页 =====================
+\clearpage
+\section*{附页\quad 符号与复算}
+\small
+点击正文「本式符号」跳到此页，点击式号返回正文。\par\smallskip
+\begin{tabularx}{\linewidth}{@{}p{10mm}X@{}}
+\toprule
+式号 & 定义 \\
+\midrule
+\sym{e:definition}{$c_1,c_2$ 为负的一、二阶泛函导数；$\beta=1/(k_{\rm B}T)$；$\ExT$ 为模型无量纲过量自由能；$\xiF$ 为三维原子场，$\X_b$ 为状态平均场。}
+\sym{e:project}{$D_{bk}$ 为响应方向（变化场），$\epsilon,\eta$ 为求导幅度；帽号表示预测。}
+\sym{e:picard}{$\rho_{qE}[\xiF]=\sum_{i\in E}\xi_{qi0}$ 为元素密度读出；$\xiF_*$ 是驻点场，$D$ 是可行变化场；$V_{\rm ext},\mu$ 为固定的外势和化学势。}
+\sym{e:radial}{$B_n,\sigma_n,r_c,u$ 为径向基、宽度、截断、无量纲距离 $u=r/r_c$；$n=0,\ldots,7$ 共 8 档。}
+\sym{e:mark}{$i,a$ 为中心与邻居；$Z_a$ 为电子数；$h=\ell^2+\ell+m$，$A=1+16n+h$；$\ell\le3$ 给 16 个角向。}
+\sym{e:frame}{$S_{tqi}$ 为沉积权重（8 格点和为 1），$\Delta V$ 为体元，$w_{bt}$ 为帧权重，$\X_b$ 为状态场。}
+\sym{e:probe}{$\phi_k$ 为探针形状；$r_n=nr_c/7$ 为壳层半径，宽度 $r_c/7$；只赋给指定通道。}
+\sym{e:weight}{$\psi_{k,qA}$ 为探针；$U_{tk}$ 帧能量，$U_{bt}$ 总微扰能，$\lambda_{bk}$ 幅度，$w_{bt}$ 权重，ESS 为有效样本数。}
+\sym{e:tangent}{$\dot w_{btk}$ 为帧权重导数，$D_{bk}$ 为同一微扰引起的场方向（与 $\X_b$ 同形）。}
+\sym{e:targets}{$C_{bkj}$ 为探针能量协方差；$N_{t,qE},\mu_{b,qE},d_{bk,qE}$ 为元素占据、均值、响应。}
+\sym{e:pool}{$X_{qA}$ 为格点总标记，$R_{qE}$ 为元素密度，$s_q$ 为 13 维标量（$1+4+8$）。}
+\sym{e:net}{$A^{(\ell)}_{q,nm}$ 保留全部径向与方位分量；卷积输入 $133=13+8(3+5+7)$。}
+\sym{e:kernel}{$K^{\rm short}$ 是两版共同的短核；$a_{c\nu},\kappa_{E\nu}$ 为短、长核权重；$\gamma^5,\gamma^{12}$ 为归一化物理核；$\zeta_{qE}$ 为长程密度输出。}
+\sym{e:energy}{$G^{(\ell)}=Y^{(\ell)}Y^{(\ell)\top}$ 为 8 径向 Gram；$I_q$ 为 121/125 维读出；$z_\lambda,h_\lambda,T_\lambda$ 为预激活、激活、空间核。}
+\sym{e:jet}{$z_{\lambda,k},I_{kj}$ 为沿探针的预激活与特征二阶变化；$a_\lambda,a_I$ 为反向伴随。}
+\sym{e:elements}{$N_E$ 为元素计数；$X,\Delta X$ 为傅里叶幅值与涨落；$\mathcal S$ 为元素结构矩阵；$\lambda_j$ 为本征值。}
+\sym{e:bulk}{$J_\lambda$ 为密度波经前 $\lambda$ 层的响应；$T_\lambda(\bm k)$ 为余弦核响应；$H^\star,H^{\rm ref}$ 为模型与参考曲率。}
+\sym{e:loss}{$N_b,P,s_1,s_2$ 为状态数、探针数、训练尺度；$L_{\rm elem}$ 为体相可靠子空间曲率误差。}
+\bottomrule
+\end{tabularx}
+
+\subsection*{真实元素矩阵算例}
+轨迹 \code{H2O-T986.4-r00-rho0.6700} 的 $\bm k=(0,0,0.81592299)\,\Ang^{-1}$。在 H、O 顺序下，式\eqref{e:elements}得到
+\[
+ \mathcal S\simeq
+ \begin{bmatrix}
+ 0.55890307&0.39727176-0.00026277\mathrm i\\
+ 0.39727176+0.00026277\mathrm i&0.31610365
+ \end{bmatrix}.
+\]
+两个可靠本征值分别为 0.02209656 和 0.85291017，对应参考曲率约为 45.2559 和 1.1725。有限帧的虚部随共轭对改变符号。算例用于复算输入，不是训练结果。
+
+\end{document}

@@ -1,0 +1,194 @@
+[
+  {
+    "status": "passed",
+    "variant": "fft-excess",
+    "device": "cuda",
+    "updates": 1,
+    "fit_rmse_before": [
+      2.507702350616455,
+      0.06912931054830551
+    ],
+    "fit_rmse_after": [
+      2.505934000015259,
+      0.069115549325943
+    ],
+    "nh3_rmse": [
+      1.3084667921066284,
+      0.022422101348638535
+    ],
+    "train_probes_c1": 152,
+    "train_probes_c2": 24,
+    "derivative_check": {
+      "c1_max_abs": 5.587935447692871e-09,
+      "c2_max_abs": 4.656612873077393e-10
+    }
+  },
+  {
+    "status": "passed",
+    "variant": "fft-intrinsic",
+    "device": "cuda",
+    "updates": 1,
+    "fit_rmse_before": [
+      0.07111053168773651,
+      0.19543671607971191
+    ],
+    "fit_rmse_after": [
+      0.06926922500133514,
+      0.19545218348503113
+    ],
+    "nh3_rmse": [
+      0.038846977055072784,
+      0.03320737183094025
+    ],
+    "train_probes_c1": 152,
+    "train_probes_c2": 24,
+    "derivative_check": {
+      "c1_max_abs": 6.821210263296962e-13,
+      "c2_max_abs": 1.1641532182693481e-09
+    }
+  },
+  {
+    "status": "passed",
+    "variant": "sparse-excess",
+    "device": "cuda",
+    "updates": 1,
+    "fit_rmse_before": [
+      2.5077004432678223,
+      0.06913461536169052
+    ],
+    "fit_rmse_after": [
+      2.505932092666626,
+      0.06912066787481308
+    ],
+    "nh3_rmse": [
+      1.3084653615951538,
+      0.02242346666753292
+    ],
+    "train_probes_c1": 152,
+    "train_probes_c2": 24,
+    "derivative_check": {
+      "c1_max_abs": 3.725290298461914e-09,
+      "c2_max_abs": 1.3969838619232178e-09
+    }
+  },
+  {
+    "status": "passed",
+    "variant": "cnn-single-excess",
+    "device": "cuda",
+    "updates": 1,
+    "fit_rmse_before": [
+      2.4920284748077393,
+      0.06858155876398087
+    ],
+    "fit_rmse_after": [
+      2.4920060634613037,
+      0.06858155876398087
+    ],
+    "nh3_rmse": [
+      1.3015356063842773,
+      0.022335920482873917
+    ],
+    "train_probes_c1": 152,
+    "train_probes_c2": 24,
+    "derivative_check": {
+      "c1_max_abs": 4.440892098500626e-16,
+      "c2_max_abs": 3.552713678800501e-14
+    }
+  },
+  {
+    "status": "passed",
+    "variant": "cnn-single-intrinsic",
+    "device": "cuda",
+    "updates": 1,
+    "fit_rmse_before": [
+      0.08678397536277771,
+      0.19598488509655
+    ],
+    "fit_rmse_after": [
+      0.0867617055773735,
+      0.19598488509655
+    ],
+    "nh3_rmse": [
+      0.047791991382837296,
+      0.033293478190898895
+    ],
+    "train_probes_c1": 152,
+    "train_probes_c2": 24,
+    "derivative_check": {
+      "c1_max_abs": 9.094947017729282e-13,
+      "c2_max_abs": 2.1316282072803006e-14
+    }
+  },
+  {
+    "status": "passed",
+    "variant": "cnn-dual-excess",
+    "device": "cuda",
+    "updates": 1,
+    "fit_rmse_before": [
+      2.4920284748077393,
+      0.06858155876398087
+    ],
+    "fit_rmse_after": [
+      2.4920060634613037,
+      0.06858155876398087
+    ],
+    "nh3_rmse": [
+      1.3015356063842773,
+      0.022335920482873917
+    ],
+    "train_probes_c1": 152,
+    "train_probes_c2": 24,
+    "derivative_check": {
+      "c1_max_abs": 7.275957614183426e-12,
+      "c2_max_abs": 2.842170943040401e-14
+    }
+  },
+  {
+    "status": "passed",
+    "variant": "stable-base",
+    "device": "cuda",
+    "updates": 1,
+    "fit_rmse_before": [
+      0.08772962158334528,
+      0.19547144791065577
+    ],
+    "fit_rmse_after": [
+      0.0009894588908954999,
+      0.0031375264067794646
+    ],
+    "nh3_rmse": [
+      0.08826130907519901,
+      0.004672138899528403
+    ],
+    "train_probes_c1": 152,
+    "train_probes_c2": 24,
+    "derivative_check": {
+      "c1_max_abs": 4.165184697146884e-09,
+      "c2_max_abs": 7.735576101897124e-08
+    }
+  },
+  {
+    "status": "passed",
+    "variant": "stable-bounded",
+    "device": "cuda",
+    "updates": 1,
+    "fit_rmse_before": [
+      0.08772962158334528,
+      0.19547144791065577
+    ],
+    "fit_rmse_after": [
+      0.0008144185160727033,
+      0.00324216240746582
+    ],
+    "nh3_rmse": [
+      0.09859556837166655,
+      0.00897882515998659
+    ],
+    "train_probes_c1": 152,
+    "train_probes_c2": 24,
+    "derivative_check": {
+      "c1_max_abs": 3.675195667240949e-08,
+      "c2_max_abs": 1.264057769567728e-07
+    }
+  }
+]

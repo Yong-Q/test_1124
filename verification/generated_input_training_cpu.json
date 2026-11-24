@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "variant": "sparse-excess",
+  "device": "cpu",
+  "updates": 1,
+  "fit_rmse_before": [
+    4.166214942932129,
+    0.18462219834327698
+  ],
+  "fit_rmse_after": [
+    4.163232803344727,
+    0.18457844853401184
+  ],
+  "nh3_rmse": [
+    1.3084652423858643,
+    0.02242346480488777
+  ],
+  "train_probes_c1": 152,
+  "train_probes_c2": 24,
+  "derivative_check": {
+    "c1_max_abs": 3.725290298461914e-09,
+    "c2_max_abs": 5.684341886080801e-13
+  }
+}

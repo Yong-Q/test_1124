@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "variant": "fft-excess",
+  "device": "cpu",
+  "updates": 1,
+  "fit_rmse_before": [
+    2.507702350616455,
+    0.06912930309772491
+  ],
+  "fit_rmse_after": [
+    2.505934000015259,
+    0.0691155418753624
+  ],
+  "nh3_rmse": [
+    1.3084667921066284,
+    0.022422101348638535
+  ],
+  "train_probes_c1": 152,
+  "train_probes_c2": 24,
+  "derivative_check": {
+    "c1_max_abs": 3.410605131648481e-13,
+    "c2_max_abs": 2.3283064365386963e-10
+  }
+}

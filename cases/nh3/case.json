@@ -1,0 +1,12 @@
+{
+  "schema": "xi-preprocessed-v1",
+  "case": "NH3-T618.2-r03-rho0.4533",
+  "species": "NH3",
+  "split": "test",
+  "frames": 400,
+  "probes": 152,
+  "source": "xi_pnas_probes152/run_159379",
+  "bulk_source": "xi_prl_bulk_coupling/bulk_elements/run_159428",
+  "bulk_modes": 32,
+  "fields": "conservative smoothstep deposition using saved atom-centered Xi, cropped for local testing"
+}

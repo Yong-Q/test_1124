@@ -1,0 +1,10 @@
+{
+  "fft-excess": {"family": "neighborhood_mlp", "variant": "fft", "output": "excess"},
+  "fft-intrinsic": {"family": "neighborhood_mlp", "variant": "fft", "output": "intrinsic"},
+  "sparse-excess": {"family": "neighborhood_mlp", "variant": "sparse", "output": "excess"},
+  "cnn-single-excess": {"family": "cnn3d", "variant": "single", "output": "excess"},
+  "cnn-single-intrinsic": {"family": "cnn3d", "variant": "single", "output": "intrinsic"},
+  "cnn-dual-excess": {"family": "cnn3d", "variant": "dual", "output": "excess"},
+  "stable-base": {"family": "stable_kernel", "variant": "base", "output": "intrinsic"},
+  "stable-bounded": {"family": "stable_kernel", "variant": "bounded", "output": "intrinsic"}
+}
