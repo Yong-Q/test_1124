@@ -1,0 +1,5 @@
+# Runtime libraries used to verify this release.
+# Install the appropriate CPU or CUDA PyTorch wheel separately.
+numpy==1.26.2
+scipy==1.11.4
+h5py==3.11.0

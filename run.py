@@ -16,12 +16,15 @@ def cli():
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='action',required=True)
     sub.add_parser('list',help='Print configurations and target definitions')
+    sub.add_parser('doctor',help='Print program version, dependencies and CUDA availability')
     check=sub.add_parser('validate',help='Recalculate the reference labels')
     check.add_argument('--case',default='both',help='ch4, nh3, both, or a prepared case directory')
     check.add_argument('--states',type=Path)
     check.add_argument('--row',type=int,default=0)
-    generate=sub.add_parser('perturb',help='Generate accepted 3D perturbations on a prepared case')
-    generate.add_argument('--case',default='ch4',help='Training case name or relative prepared case directory')
+    generate=sub.add_parser('perturb',help='Apply atomic cosines and periodic 3D wells to prepared data')
+    generate.add_argument('--manifest',type=Path,required=True)
+    generate.add_argument('--case',required=True,help='Training case identifier from the 152-probe manifest')
+    generate.add_argument('--workers',type=int,default=1)
     generate.add_argument('--count',type=int,default=300)
     generate.add_argument('--seed',type=int,default=617)
     generate.add_argument('--output',type=Path,required=True)
@@ -55,6 +58,15 @@ def main():
         parser.error('--row must be nonnegative')
     if args.action=='list':
         result=VARIANTS
+    elif args.action=='doctor':
+        import platform
+        import numpy
+        import scipy
+        import h5py
+        import torch
+        result=dict(code_version=(ROOT/'VERSION').read_text().strip(), python=platform.python_version(),
+                    numpy=numpy.__version__,scipy=scipy.__version__,h5py=h5py.__version__,
+                    torch=torch.__version__,torch_cuda=torch.version.cuda,cuda_available=torch.cuda.is_available())
     elif args.action=='validate':
         from prepared import verify
         if args.states and args.case=='both':
@@ -62,8 +74,8 @@ def main():
         cases=('ch4','nh3') if args.case=='both' else (args.case,)
         result=[verify(case,args.states,args.row) for case in cases]
     elif args.action=='perturb':
-        from prepared import perturb
-        result=perturb(args.case,args.count,args.output,args.seed)
+        from preprocessing.atomic import run
+        result=run(args.manifest,args.case,args.count,args.output,args.seed,args.workers)
     else:
         if min(args.epochs,args.batch,args.microbatch,args.fft_group,args.threads)<1:
             parser.error('Epochs, batch sizes, FFT group and threads must be positive')

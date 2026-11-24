@@ -1,0 +1,32 @@
+{
+  "status": "passed",
+  "case": "C2H4-source239-C2H4-PRL-T430.3-r00-0.000291",
+  "device": "cuda",
+  "samples": 300,
+  "physical_energy": [
+    {
+      "row": 0,
+      "energy_max_abs": 1.3877787807814457e-17
+    },
+    {
+      "row": 299,
+      "energy_max_abs": 1.1102230246251565e-16
+    }
+  ],
+  "manifest_readback": true,
+  "model_validation_scope": "two-direction derivatives on a 5^3 periodic crop",
+  "model_checks": {
+    "fft-excess": {
+      "c1_max_abs": 3.725290298461914e-09,
+      "c2_max_abs": 1.4551915228366852e-11
+    },
+    "cnn-single-excess": {
+      "c1_max_abs": 1.4551915228366852e-11,
+      "c2_max_abs": 1.0913936421275139e-11
+    },
+    "stable-bounded": {
+      "c1_max_abs": 1.2177292973893777e-11,
+      "c2_max_abs": 1.273263813827974e-09
+    }
+  }
+}

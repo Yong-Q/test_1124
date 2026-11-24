@@ -26,13 +26,18 @@ def dataset_inputs(path, bulk_index=None):
         raise ValueError('Expected a manifest with 152 probes')
     for cases in manifest['splits'].values():
         for case in cases:
-            for key in ('cache','labels','additional_labels'):
-                if key not in case:
-                    continue
+            for key in ('cache','labels'):
                 file=(path.parent/case[key]).resolve()
                 if not file.is_file():
                     raise FileNotFoundError(file)
                 case[key]=str(file)
+            extra=driver.additional_label_paths(case)
+            if extra:
+                resolved=[(path.parent/file).resolve() for file in extra]
+                for file in resolved:
+                    if not file.is_file():
+                        raise FileNotFoundError(file)
+                case['additional_labels']=[str(file) for file in resolved]
     driver.dataset(manifest, smoke=False)
     if bulk_index is None:
         return manifest, {}

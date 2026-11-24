@@ -1,5 +1,7 @@
 # 三维 ξ 自由能训练
 
+**代码版本 v0.2.0** · [版本记录](CHANGELOG.md)
+
 一套命令训练八个配置。输入采用预处理好的三维 \(\xi\) 场和探针响应，训练选择过量自由能或总内禀自由能。第 7–11 页给出与代码对应的损失和二阶算法。[训练技术报告 PDF](docs/report.pdf) · [总方法 PDF](docs/methods_revised.pdf)
 
 ## 三个模型目录
@@ -14,10 +16,11 @@
 
 ## 本地快速运行
 
-推荐 Python 3.10 或 3.11。先安装适合本机 CUDA 的 PyTorch，再安装余下依赖。CPU 也能跑两个小案例。
+推荐 Python 3.10。先安装与本机设备匹配的 PyTorch，再安装 [验证环境的固定依赖](requirements-repro.txt)。CPU 可运行小例，完整网格训练需要 CUDA。GPU3 验证用 Python 3.10.4、PyTorch 2.12.0+cu130。见 [全部实测版本](verification/requirements-tested.txt) 和 [常规依赖](requirements.txt)。
 
 ```bash
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-repro.txt
+bash run.sh doctor
 bash run.sh list
 bash run.sh validate
 bash run.sh train fft-excess --case ch4 --device cpu --output runs/fft_demo
@@ -43,16 +46,16 @@ bash verification/smoke.sh runs/local_gpu cuda
 
 `reference.npz` 的 `c1_excess`、`c2_excess` 是过量自由能的带负号投影，`y1_intrinsic`、`y2_intrinsic` 是对应的总内禀量。程序按配置自动选择。`--case` 也可以传相对路径，例如 `--case cases/ch4`。两例从原预处理的中心取 \(5^3\) 格点，重建小块探针标签，并保留 32 个原盒体相监督模式。小块训练设周期边界，验证目的是复算、训练与求导对齐。`archived_full_box.npz` 另保留原盒均相参考标签作溯源，训练小例从小块的 `reference.npz` 读标签。
 
-## 一键生成 300 条三维外势微扰
+## 一键生成 300 条逐原子三维外势微扰
+
+见 [低浓度 C₂H₄ 测试](cases/low_density_c2h4/README.md)。使用你的既有预处理缓存，在 240³ 原盒里给每个原子施加随机余弦和周期三维势井，再重加权，生成与原 152 个标签方向对齐的新状态。
 
 ```bash
-bash run.sh perturb --case ch4 --count 300 --output runs/ch4_perturb_300.npz
-bash run.sh validate --case ch4 --states runs/ch4_perturb_300.npz --row 299
-bash run.sh train fft-excess --case ch4 --states runs/ch4_perturb_300.npz --row 299 \
-  --output runs/ch4_generated_demo
+WORKERS=12 bash cases/low_density_c2h4/reproduce.sh \
+  path/to/training_split.json runs/c2h4_low_density_3d
 ```
 
-命令在一份已有预处理输入上组合空间探针、径向–角向探针及两者的组合。对每个候选算 Boltzmann 权重、检查帧和时间块有效样本数，再保存通过筛选的权重、外势系数和两套标签。固定种子可复算。生成文件保存在用户指定的位置，仓库附带脚本和小例输入。300 条是重加权状态。
+任意一条训练样本可用 `run.sh perturb --manifest ... --case ... --count 300 --output ...` 指定。状态由命令在本地生成。输出目录的 `training_split.json` 可直接接到下面的完整训练入口。
 
 ## 直接调用完整数据训练
 
@@ -63,12 +66,12 @@ bash run.sh train cnn-single-excess \
   --output runs/cnn_full
 ```
 
-`training_split.json` 是已有的 152 探针训练划分。各项提供 `case`、`species`、`states`、预处理 `cache` 和 `labels`，可选训练专用的 `additional_labels`。`bulk_labels_index.json` 给出各角色、各轨迹的体相标签路径。文件项的相对路径以清单本身的目录为基准。命令行参数里的相对路径以运行时工作目录为基准。完整训练需要用户已有的预处理数据。加 `--check-only` 检查完整清单与文件位置，实际读数训练还会校验帧与标签形状。稳定核接受同一 `--manifest`，由训练入口重新拟合并保存两套权重，可省略 `--bulk-index`。
+`training_split.json` 是已有的 152 探针训练划分。各项提供 `case`、`species`、`states`、预处理 `cache` 和 `labels`，可选训练专用的 `additional_labels`，可给一条或多条标签分片路径。`bulk_labels_index.json` 给出各角色、各轨迹的体相标签路径。文件项的相对路径以清单本身的目录为基准。命令行参数里的相对路径以运行时工作目录为基准。完整训练需要用户已有的预处理数据。加 `--check-only` 检查完整清单与文件位置，实际读数训练还会校验帧与标签形状。稳定核接受同一 `--manifest`，由训练入口重新拟合并保存两套权重，可省略 `--bulk-index`。
 
 `bash run.sh train --help` 查看参数。原报告训练用训练标签 RMS 归一化，所有模型从各自初始化训练。外势迭代和训练各自计算。局部小例验证用的尺度只由 CH₄ 计算。NH₃ 只用来报告验证。
 
 ## 验证和源码说明
 
-[参考标签复算](verification/reference_cpu.json) · [外势生成验证](verification/perturb_300_cpu.json) · [本地测试记录](verification/README.md)
+[参考标签复算](verification/reference_cpu.json) · [逐原子外势验证](cases/low_density_c2h4/README.md) · [本地测试记录](verification/README.md)
 
 报告源和总方法源可在 `docs/` 查阅。 `cases/build_fixtures.py` 记录了如何从项目已有预处理重建这两份小例，需要能访问原项目输入；日常使用直接读已交付的 NPZ 文件。

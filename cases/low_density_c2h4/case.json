@@ -1,0 +1,31 @@
+{
+  "case_format_version": 1,
+  "code_release": "v0.2.0",
+  "case": "C2H4-source239-C2H4-PRL-T430.3-r00-0.000291",
+  "source_preprocessing": "xi_pnas_probes152/run_159379",
+  "source_split": "train",
+  "input_array_sha256": {
+    "source_steps": "48ead192ee515733cf93512113e454bf873189549019bc2d9f8ca9e9d2e053cb",
+    "probe_energy": "a715d3650ddc6470d5467d1146f24d0e5b5dcf2b13a44b7af46bac6f9edaba72"
+  },
+  "frames": 400,
+  "atoms": 3000,
+  "probes": 152,
+  "grid": [
+    240,
+    240,
+    240
+  ],
+  "box_A": [
+    119.8408282594,
+    119.8408282594,
+    119.8408282594
+  ],
+  "molecular_density_per_A3": 0.0002905063291136949,
+  "temperature_K": 430.3,
+  "background_recipe": "S7_cosines_plus_periodic_cuboids",
+  "seed": 617,
+  "accepted_states": 300,
+  "background_implementation_sha256": "d109350200eb86942df1183d2d7a88b75cb25e0b19a699f186f21262f2e5cc67",
+  "projection_implementation_sha256": "244f9b14d70fda1378b437bb55d76b5b644f092b11016e55a447778ff64c10cf"
+}

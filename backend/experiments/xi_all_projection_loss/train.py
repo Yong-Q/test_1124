@@ -154,6 +154,14 @@ class Metrics:
                 for metric, value in self.score(totals, self.n, scale).items()}
 
 
+def additional_label_paths(case):
+    entries = case.get('additional_labels', [])
+    paths = [entries] if isinstance(entries, str) else entries
+    if not isinstance(paths, list) or not all(isinstance(path, str) and path for path in paths):
+        raise ValueError('additional_labels must be a path or a list of paths')
+    return paths
+
+
 def dataset(manifest, smoke):
     splits = manifest['splits']
     heldout = {'NH3', 'C2H6'}
@@ -163,10 +171,10 @@ def dataset(manifest, smoke):
     for role, cases in splits.items():
         for case in cases:
             paths = [case['cache'], case['labels']]
-            if 'additional_labels' in case:
-                if role != 'train':
-                    raise ValueError('Additional backgrounds are restricted to training')
-                paths.append(case['additional_labels'])
+            extra = additional_label_paths(case)
+            if extra and role != 'train':
+                raise ValueError('Additional backgrounds are restricted to training')
+            paths.extend(extra)
             for value in (case['case'], *(str(Path(path).resolve()) for path in paths)):
                 if value in seen:
                     raise ValueError('Trajectory reused across manifest entries: ' + value)
@@ -182,20 +190,27 @@ def dataset(manifest, smoke):
 
 @contextmanager
 def case_labels(case):
+    paths = additional_label_paths(case)
     with np.load(case['labels']) as base:
-        if 'additional_labels' not in case:
+        if not paths:
             yield base
             return
-        with np.load(case['additional_labels']) as added:
-            shared = ('shape', 'source_steps', 'voxel_volume', 'deposition', 'probe_energy')
-            data = {key: base[key] for key in shared}
-            if 'dweights' in base or 'dweights' in added:
-                raise ValueError('Augmented 152-probe labels must reconstruct response weights')
-            for key, values in data.items():
-                np.testing.assert_array_equal(values, added[key], err_msg=f'Probe shards differ in {key}')
-            for key in ('weights', *KEYS):
-                data[key] = np.concatenate((base[key], added[key]))
-            yield data
+        shared = ('shape', 'source_steps', 'voxel_volume', 'deposition', 'probe_energy')
+        data = {key: base[key] for key in shared}
+        if 'dweights' in base:
+            raise ValueError('Augmented 152-probe labels must reconstruct response weights')
+        batches = {key: [base[key]] for key in ('weights', *KEYS)}
+        for path in paths:
+            with np.load(path) as added:
+                if 'dweights' in added:
+                    raise ValueError('Augmented 152-probe labels must reconstruct response weights')
+                for key, values in data.items():
+                    np.testing.assert_array_equal(values, added[key], err_msg=f'Probe shards differ in {key}')
+                for key in batches:
+                    batches[key].append(added[key])
+        for key, values in batches.items():
+            data[key] = np.concatenate(values)
+        yield data
 
 
 def take_rows(case, smoke, smoke_states=3):

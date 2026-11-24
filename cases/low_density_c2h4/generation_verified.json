@@ -1,0 +1,44 @@
+{
+  "status": "passed",
+  "case": "C2H4-source239-C2H4-PRL-T430.3-r00-0.000291",
+  "model_input": "preprocessed_atomic_cache",
+  "background": "cosine_cuboid_3d",
+  "seed": 617,
+  "temperature_K": 430.3,
+  "states": 300,
+  "attempts": 339,
+  "frames": 400,
+  "atoms": 3000,
+  "grid": [
+    240,
+    240,
+    240
+  ],
+  "box_A": [
+    119.8408282594,
+    119.8408282594,
+    119.8408282594
+  ],
+  "probes": 152,
+  "c2_shape": [
+    300,
+    152,
+    152
+  ],
+  "verified": [
+    {
+      "row": 0,
+      "c1_max_abs": 9.515588317299262e-10,
+      "c2_max_abs": 2.682209014892578e-07
+    },
+    {
+      "row": 299,
+      "c1_max_abs": 1.0331859812140465e-09,
+      "c2_max_abs": 3.5762786865234375e-07
+    }
+  ],
+  "min_ess": 120.91279730156035,
+  "min_block_ess": 15.937959901609487,
+  "fields_seconds": 136.4569719582796,
+  "wall_seconds": 228.0983574874699
+}
