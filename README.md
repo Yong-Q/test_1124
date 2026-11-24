@@ -30,7 +30,7 @@ bash verification/smoke.sh runs/local_cpu cpu
 bash verification/smoke.sh runs/local_gpu cuda
 ```
 
-每次运行用新输出目录。训练从种子 617 初始化，输出 `weights.pt` 和 `summary.json`。JSON 包含参数更新数、CH₄ 更新前后 RMSE、冻结后 NH₃ RMSE 和解析导数对自动微分的核对。RMSE 数组按一阶、二阶排列。小案例一阶用完整 152 个探针，训练和 RMSE 冒烟核对的二阶用采样的 24×24 块。参考标签复算核对全部 152×152 条目。完整训练在留出评估时计算全部 152² 个条目。
+每次运行用新输出目录。训练从种子 617 初始化，输出 `weights.pt`、`summary.json` 以及 `train_predictions.npz` 和 `test_predictions.npz`。JSON 包含参数更新数、CH₄ 更新前后 RMSE、冻结后 NH₃ RMSE 和解析导数对自动微分的核对。RMSE 数组按一阶、二阶排列。小案例一阶用完整 152 个探针，训练和 RMSE 冒烟核对的二阶用采样的 24×24 块。参考标签复算核对全部 152×152 条目。完整训练在留出评估时计算全部 152² 个条目。
 
 ## 两个预处理案例
 
@@ -41,7 +41,7 @@ bash verification/smoke.sh runs/local_gpu cuda
 
 每个案例的 `input.npz` 含聚合后的 `xi_frames[400,125,133]`、三维格距、单格体积、帧权重和探针能量 `probe_energy[400,152]`。133 通道依次是总密度、128 个径向–角向环境分量、按 C/H/N/O 排列的四个元素数密度。前两类来自同一原子分辨 ξ 的格点累加，元素密度的和与总密度一致。公开示例保留数值场和标签，没有原子坐标。
 
-`reference.npz` 的 `c1_excess`、`c2_excess` 是过量自由能的带负号投影，`y1_intrinsic`、`y2_intrinsic` 是对应的总内禀量。程序按配置自动选择。两例从原预处理的中心取 \(5^3\) 格点，重建小块探针标签，并保留 32 个原盒体相监督模式。小块训练设周期边界，验证目的是复算、训练与求导对齐。`archived_full_box.npz` 另保留原盒均相参考标签作溯源，训练小例从小块的 `reference.npz` 读标签。
+`reference.npz` 的 `c1_excess`、`c2_excess` 是过量自由能的带负号投影，`y1_intrinsic`、`y2_intrinsic` 是对应的总内禀量。程序按配置自动选择。`--case` 也可以传相对路径，例如 `--case cases/ch4`。两例从原预处理的中心取 \(5^3\) 格点，重建小块探针标签，并保留 32 个原盒体相监督模式。小块训练设周期边界，验证目的是复算、训练与求导对齐。`archived_full_box.npz` 另保留原盒均相参考标签作溯源，训练小例从小块的 `reference.npz` 读标签。
 
 ## 一键生成 300 条三维外势微扰
 

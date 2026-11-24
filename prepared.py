@@ -14,7 +14,7 @@ LABEL_KEYS = ('c1_excess','c2_excess','y1_intrinsic','y2_intrinsic')
 
 
 def load(case, states=None, row=0):
-    path=ROOT/'cases'/case
+    path=ROOT/'cases'/case if case in ('ch4','nh3') else Path(case)
     info=json.loads((path/'case.json').read_text())
     with np.load(path/'input.npz') as saved:
         data={k:saved[k] for k in saved.files}

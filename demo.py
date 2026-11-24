@@ -110,7 +110,7 @@ class Fields:
 
 def example(case,states,row,config,device):
     data,ref,info=load(case,states,row)
-    targets,dw=references(data,data['weights'],data['beta_external'])
+    _,dw=references(data,data['weights'],data['beta_external'])
     total=config['output']=='intrinsic'
     source=Fields(data,info,device,config['variant']=='sparse',total)
     coeff=source.tensor(np.column_stack((data['weights'],dw)))[None]
@@ -177,7 +177,7 @@ def stable_fit(model, source, coeff, target, pick, inverse, bounded):
     return params.tolist()
 
 
-def score(model,source,coeff,targets,stable,pick):
+def score(model,source,coeff,targets,stable,pick,save_predictions=False):
     with torch.no_grad():
         if stable:
             design,ideal=stable_design(model,source,coeff,pick)
@@ -185,7 +185,7 @@ def score(model,source,coeff,targets,stable,pick):
             pred=[d@params+IDEAL_FLOOR*i for d,i in zip(design,ideal)]
         else:
             index=np.r_[0,np.asarray(pick)+1]
-            p1,p2=model.volume_jets(*next(source.chunks(model,coeff[:,:,index])))
+            _,p2=model.volume_jets(*next(source.chunks(model,coeff[:,:,index])))
             # Use the full set for first-order only.
             w=coeff[:,:,0].detach().requires_grad_()
             with torch.enable_grad():
@@ -193,7 +193,11 @@ def score(model,source,coeff,targets,stable,pick):
                 byframe,=torch.autograd.grad(f.sum(),w)
             pred=[-(coeff[0,:,1:].T@byframe[0]),p2[0]*source.dv]
         ref=[targets[0][0],targets[1][0][pick][:,pick]]
-        return [float((a-b).square().mean().sqrt()) for a,b in zip(pred,ref)]
+        rms=[float((a-b).square().mean().sqrt()) for a,b in zip(pred,ref)]
+        if save_predictions:
+            return rms,{key:t.detach().cpu().numpy() for key,t in zip(
+                ('pred_y1','pred_y2','ref_y1','ref_y2'),[*pred,*ref])}
+        return rms
 
 
 def derivative_check(model,source,coeff,stable):
@@ -212,7 +216,6 @@ def derivative_check(model,source,coeff,stable):
         mixture=selected[:,:,:1]+selected[:,:,1:]@a[:,None]
         if stable:
             field=source.filtered(model,mixture)[0,:,0]
-            _,ang,long=model.blocks(field)
             scalar=model.scalar_features(model.angular_invariants(field))
             value=model.energy_density(field)
             gains=model.environment_weights.reshape(len(CHANNELS),len(NEURONS))
@@ -279,15 +282,18 @@ def run(args,config):
             torch.nn.utils.clip_grad_norm_(model.parameters(),10.,error_if_nonfinite=True)
             optimizer.step()
         updates=args.epochs
-    after=score(model,source,coeff,target,stable,pick)
+    after,train_prediction=score(model,source,coeff,target,stable,pick,True)
     held,held_coeff,held_y,_=example('nh3',None,0,config,device)
-    test=score(model,held,held_coeff,held_y,stable,pick)
+    test,held_prediction=score(model,held,held_coeff,held_y,stable,pick,True)
     check=derivative_check(model,source,coeff,stable)
     changed=any(not torch.equal(before,after) for before,after in zip(parameters,model.parameters()))
     if not changed or not np.isfinite([*before,*after,*test]).all():
         raise RuntimeError('Training failed to update parameters or produced nonfinite results')
     args.output.mkdir(parents=True)
     torch.save(model.state_dict(),args.output/'weights.pt')
+    for split,values in (('train',train_prediction),('test',held_prediction)):
+        np.savez_compressed(args.output/f'{split}_predictions.npz',**values,
+                            c2_probe_indices=pick,label_family=config['output'])
     result=dict(status='passed',variant=args.variant,device=str(device),updates=updates,
                 fit_rmse_before=before,fit_rmse_after=after,nh3_rmse=test,
                 train_probes_c1=152,train_probes_c2=24,derivative_check=check)

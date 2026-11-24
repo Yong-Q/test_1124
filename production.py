@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import hashlib
 import json
 from pathlib import Path
+from shutil import copyfile
 import sys
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -51,6 +52,8 @@ def train(args, config):
     if not stable and args.bulk_index is None:
         raise ValueError('--bulk-index is required for FFT, sparse and CNN training')
     manifest, labels=dataset_inputs(args.manifest, args.bulk_index)
+    if args.skip_validation:
+        manifest['splits']['validation']=[]
     if args.check_only:
         return dict(status='input_manifest_verified',variant=args.variant,
                     counts={k:len(v) for k,v in manifest['splits'].items()})
@@ -77,6 +80,7 @@ def train(args, config):
             sys.argv=[sys.argv[0],str(directory),str(args.output),'--channels',*map(str,CHANNELS),
                       '--train-microbatch',str(args.microbatch)]
             main()
+            copyfile(path,args.output/'input_manifest.json')
             return dict(status='trained', output=str(args.output),checkpoint=f"{'base' if config['variant']=='base' else 'bounded_mlp'}.pt")
         total=config['output']=='intrinsic'
         factory=cnn if config['family']=='cnn3d' else mlp
@@ -113,4 +117,5 @@ def train(args, config):
         batch=measured_batch() if total else with_curvature(batch_factory)(24,stratified=True)
         driver.main(model_factory=make_model,case_factory=lambda c,d,dev:bulk(c,d,dev,labels),
                     source_factory=source_factory,batch_fn=batch,save_case_checkpoints=True,argv=params)
+        copyfile(path,args.output/'input_manifest.json')
         return dict(status='trained',output=str(args.output))
