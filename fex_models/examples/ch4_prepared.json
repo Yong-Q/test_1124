@@ -1,0 +1,25 @@
+{
+  "format_version": 1,
+  "parts": [
+    {
+      "file": "ch4_prepared.bulk.npz",
+      "sha256": "7ad8ae3a753b62ad39dac6e4abf64a9b91ea84c40f18274aad89595d290794a5",
+      "bytes": 26454386
+    },
+    {
+      "file": "ch4_prepared.grid_base.npz",
+      "sha256": "c016ce2e8cede30d8821776f40b940ae23bd728e48313fddf55387a2f5c2630e",
+      "bytes": 20289768
+    },
+    {
+      "file": "ch4_prepared.grid_weak.npz",
+      "sha256": "3f0f47eb26da59df1ade60508d8f7ed72bdebc07bec9b04c3fadce6b21dabc7d",
+      "bytes": 20271599
+    },
+    {
+      "file": "ch4_prepared.ppt.npz",
+      "sha256": "64fa5102763b4a0d1118e1d1561778fc4c6ed19e6dcbe24add300fac24d1acc1",
+      "bytes": 10937547
+    }
+  ]
+}

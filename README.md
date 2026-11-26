@@ -1,8 +1,12 @@
 # 三维 ξ 自由能训练
 
-**代码版本 v0.2.1** · [版本记录](CHANGELOG.md)
+**代码版本 v0.3.0** · [版本记录](CHANGELOG.md)
 
 一套命令训练八个配置。输入采用预处理好的三维 \(\xi\) 场和探针响应，训练选择过量自由能或总内禀自由能。第 7–11 页给出与代码对应的损失和二阶算法。[训练技术报告 PDF](docs/report.pdf) · [总方法 PDF](docs/methods_revised.pdf)
+
+## 新增的过量自由能模型
+
+[原子 ξ 自由能模型](fex_models/README.md)提供 PPT 的 5 Å 方向核 SOG、独立 $c_1/c_2$ 双线、冻结校准和双向互教。用 `python -m fex_models check` 验证两个真实预处理案例。训练模式、输入数据格式及输出单位见[接口说明](fex_models/INTERFACE.md)。
 
 ## 三个模型目录
 

@@ -1,0 +1,181 @@
+{
+  "python": "3.10.4",
+  "torch": "2.12.0+cu130",
+  "numpy": "1.26.2",
+  "cuda_device": "NVIDIA GeForce RTX 4090",
+  "cases": 2,
+  "derivative_parity_comparisons_per_device": 10,
+  "updates": [
+    {
+      "device": "cpu",
+      "model": "ppt",
+      "updated_branches": [
+        "ppt_gradient_norm"
+      ],
+      "loss_terms": [
+        "c1_loss",
+        "c2_loss"
+      ]
+    },
+    {
+      "device": "cpu",
+      "model": "c1",
+      "updated_branches": [
+        "c1_gradient_norm"
+      ],
+      "loss_terms": [
+        "c1_EL_mse"
+      ]
+    },
+    {
+      "device": "cpu",
+      "model": "c2",
+      "updated_branches": [
+        "c2_gradient_norm"
+      ],
+      "loss_terms": [
+        "bulk_c2_loss"
+      ]
+    },
+    {
+      "device": "cpu",
+      "model": "guided",
+      "updated_branches": [
+        "c1_gradient_norm"
+      ],
+      "loss_terms": [
+        "c1_EL_mse",
+        "md_c1_relative_rmse",
+        "md_c2_relative_rmse"
+      ]
+    },
+    {
+      "device": "cpu",
+      "model": "mutual",
+      "updated_branches": [
+        "c1_gradient_norm",
+        "c2_gradient_norm"
+      ],
+      "loss_terms": [
+        "bulk_c2_loss",
+        "c1_EL_mse",
+        "md_c1_relative_rmse",
+        "md_c2_relative_rmse"
+      ]
+    },
+    {
+      "device": "cpu",
+      "model": "gated",
+      "updated_branches": [
+        "c1_gradient_norm",
+        "c2_gradient_norm"
+      ],
+      "loss_terms": [
+        "bulk_c2_loss",
+        "c1_EL_mse",
+        "md_c1_relative_rmse",
+        "md_c2_relative_rmse"
+      ]
+    },
+    {
+      "device": "cpu",
+      "model": "no-peer",
+      "updated_branches": [
+        "c1_gradient_norm",
+        "c2_gradient_norm"
+      ],
+      "loss_terms": [
+        "bulk_c2_loss",
+        "c1_EL_mse",
+        "md_c1_relative_rmse",
+        "md_c2_relative_rmse"
+      ]
+    },
+    {
+      "device": "cuda",
+      "model": "ppt",
+      "updated_branches": [
+        "ppt_gradient_norm"
+      ],
+      "loss_terms": [
+        "c1_loss",
+        "c2_loss"
+      ]
+    },
+    {
+      "device": "cuda",
+      "model": "c1",
+      "updated_branches": [
+        "c1_gradient_norm"
+      ],
+      "loss_terms": [
+        "c1_EL_mse"
+      ]
+    },
+    {
+      "device": "cuda",
+      "model": "c2",
+      "updated_branches": [
+        "c2_gradient_norm"
+      ],
+      "loss_terms": [
+        "bulk_c2_loss"
+      ]
+    },
+    {
+      "device": "cuda",
+      "model": "guided",
+      "updated_branches": [
+        "c1_gradient_norm"
+      ],
+      "loss_terms": [
+        "c1_EL_mse",
+        "md_c1_relative_rmse",
+        "md_c2_relative_rmse"
+      ]
+    },
+    {
+      "device": "cuda",
+      "model": "mutual",
+      "updated_branches": [
+        "c1_gradient_norm",
+        "c2_gradient_norm"
+      ],
+      "loss_terms": [
+        "bulk_c2_loss",
+        "c1_EL_mse",
+        "md_c1_relative_rmse",
+        "md_c2_relative_rmse"
+      ]
+    },
+    {
+      "device": "cuda",
+      "model": "gated",
+      "updated_branches": [
+        "c1_gradient_norm",
+        "c2_gradient_norm"
+      ],
+      "loss_terms": [
+        "bulk_c2_loss",
+        "c1_EL_mse",
+        "md_c1_relative_rmse",
+        "md_c2_relative_rmse"
+      ]
+    },
+    {
+      "device": "cuda",
+      "model": "no-peer",
+      "updated_branches": [
+        "c1_gradient_norm",
+        "c2_gradient_norm"
+      ],
+      "loss_terms": [
+        "bulk_c2_loss",
+        "c1_EL_mse",
+        "md_c1_relative_rmse",
+        "md_c2_relative_rmse"
+      ]
+    }
+  ],
+  "checkpoint_reload": "passed on all requested devices"
+}
