@@ -8,6 +8,16 @@
 
 [原子 ξ 自由能模型](fex_models/README.md)提供 PPT 的 5 Å 方向核 SOG、独立 $c_1/c_2$ 双线、冻结校准和双向互教。用 `python -m fex_models check` 验证两个真实预处理案例。训练模式、输入数据格式及输出单位见[接口说明](fex_models/INTERFACE.md)。
 
+### 双向互教
+
+仓库中的双向互教入口是 `python -m fex_models train --model mutual`。使用 `--model gated` 运行有门控的版本，使用 `--model no-peer` 做无互教对照。
+
+```bash
+python -m fex_models train --model mutual --device cpu --output runs/mutual_demo
+```
+
+[双向互教运行说明](fex_models/MUTUAL.md) · [发布版训练损失](fex_models/training.py) · [全量互教原始入口](fex_models/provenance/native/train_mutual.py) · [开关对照原始入口](fex_models/provenance/native/ablation.py)
+
 ## 三个模型目录
 
 | 目录 | 配置名称 | 输出与损失 |
